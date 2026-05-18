@@ -1,0 +1,4 @@
+[test]
+# Scope bun's built-in test runner to our test dir.
+# ai-town-fork/ contains upstream Jest tests we don't want bun to discover.
+root = "tests"
