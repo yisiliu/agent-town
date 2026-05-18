@@ -20,6 +20,7 @@ import { instructorChallenges } from './instructorChallenges';
 import { instructorSessions } from './instructorSessions';
 import { agentDailySpend } from './agentDailySpend';
 import { worldState } from './worldState';
+import { uploadResults } from './uploadResults';
 
 export const ourTables = {
   twins,
@@ -44,4 +45,5 @@ export const ourTables = {
   instructorSessions,
   agentDailySpend,
   worldState,
+  uploadResults,
 };

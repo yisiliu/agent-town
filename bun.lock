@@ -8,6 +8,8 @@
         "@anthropic-ai/sdk": "^0.96.0",
         "@simplewebauthn/server": "^13.3.0",
         "bcryptjs": "^3.0.3",
+        "fflate": "^0.8.3",
+        "sharp": "^0.34.5",
       },
       "devDependencies": {
         "@types/node": "^25.9.0",
@@ -72,6 +74,9 @@
       "version": "0.1.0",
       "dependencies": {
         "convex": "^1.39.1",
+        "fflate": "^0.8.3",
+        "sharp": "^0.34.5",
+        "yaml": "^2.9.0",
       },
     },
     "shell": {
@@ -79,6 +84,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@simplewebauthn/browser": "^13.3.0",
+        "convex": "^1.39.1",
         "next": "^16.2.6",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
@@ -920,6 +926,8 @@
     "fb-watchman": ["fb-watchman@2.0.2", "", { "dependencies": { "bser": "2.1.1" } }, "sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA=="],
 
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
+
+    "fflate": ["fflate@0.8.3", "", {}, "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="],
 
     "file-entry-cache": ["file-entry-cache@6.0.1", "", { "dependencies": { "flat-cache": "^3.0.4" } }, "sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg=="],
 

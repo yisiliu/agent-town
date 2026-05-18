@@ -32,6 +32,7 @@ const OUR_TABLES = [
   'instructorSessions',
   'agentDailySpend',
   'worldState',
+  'uploadResults',
 ] as const;
 
 type Tables = Record<string, { [' indexes'](): { indexDescriptor: string; fields: string[] }[] }>;

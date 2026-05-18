@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
+    "convex": "^1.39.1",
     "next": "^16.2.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
