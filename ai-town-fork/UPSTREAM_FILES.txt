@@ -1,3 +1,17 @@
+# UPSTREAM_FILES.txt — allowlist of files inherited from a16z-infra/ai-town
+# at upstream SHA pinned in ai-town-fork/UPSTREAM_VERSION.txt
+#
+# Lines beginning with # are comments (ignored).
+# Inline EXEMPT annotation lets a file drift from the lock without failing CI.
+# Format:   <relative path>   # EXEMPT: <human-readable reason>
+# Example:  ./convex/aiTown/main.ts   # EXEMPT: tick-gate (Task 14)
+#
+# To regenerate this file after bumping UPSTREAM_VERSION.txt:
+#   bash scripts/regen-upstream-lock.sh
+#
+# Symmetric gate rule: any file outside ai-town-fork/ours/ MUST appear here
+# OR fail the additivity check as UNAUTHORIZED_NEW_FILE.
+
 ./.dockerignore
 ./.eslintignore
 ./.eslintrc.js
