@@ -17,15 +17,14 @@
     "tests/**/*.ts",
     "convex/**/*.ts",
     "shell/src/**/*.ts",
-    "shell/src/**/*.tsx",
-    "ai-town-fork/src/**/*.ts",
-    "ai-town-fork/src/**/*.tsx"
+    "shell/src/**/*.tsx"
   ],
   "exclude": [
     "**/_generated/**",
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/.next/**"
+    "**/.next/**",
+    "ai-town-fork/**"
   ]
 }
