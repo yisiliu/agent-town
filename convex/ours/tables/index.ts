@@ -18,6 +18,7 @@ import { instructors } from './instructors';
 import { instructorAuthenticators } from './instructorAuthenticators';
 import { instructorChallenges } from './instructorChallenges';
 import { instructorSessions } from './instructorSessions';
+import { agentDailySpend } from './agentDailySpend';
 
 export const ourTables = {
   twins,
@@ -40,4 +41,5 @@ export const ourTables = {
   instructorAuthenticators,
   instructorChallenges,
   instructorSessions,
+  agentDailySpend,
 };

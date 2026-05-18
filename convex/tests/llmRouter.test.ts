@@ -35,6 +35,14 @@ function makeDeps(overrides: Partial<RouteDeps> = {}): RouteDeps {
       text: 'a quiet kind of bright',
       usage: { input_tokens: 80, output_tokens: 9 },
     }),
+    // Local-tier dep — these tests only exercise frontier callTypes,
+    // so RunPod is never called. The mock exists to satisfy the
+    // required-dep contract introduced in Task 12.
+    callRunpod: vi.fn().mockRejectedValue(
+      new Error('callRunpod should not run for frontier tests'),
+    ),
+    lookupDailySpendUsd: vi.fn().mockResolvedValue(0),
+    addDailySpendUsd: vi.fn().mockResolvedValue(undefined),
     sleep: () => Promise.resolve(),
     ...overrides,
   };
