@@ -35,10 +35,12 @@ export const PII_PATTERNS: PIIPattern[] = [
   // Chinese street address: "X路" or "X街" followed within a short
   // window by 号 + digits. The X路X号 / X街X号 combo is the strongest
   // address signal in zh; matching either keyword alone catches too
-  // many fictional place names (光明路 isn't always PII).
+  // many fictional place names (光明路 isn't always PII). The gap
+  // permits whitespace ("建国路 88 号") but stops at sentence
+  // punctuation so we don't bridge two phrases.
   {
     label: 'address (CN street)',
-    regex: /[路街弄巷][^\s，。,.]{0,12}?\d+\s*号/,
+    regex: /[路街弄巷][^，。,.\n]{0,12}?\d+\s*号/,
   },
   // US-style street address: number + word + Street/Ave/Rd/Blvd/Ln/Dr.
   // Word boundary on both sides; case-insensitive suffix.
