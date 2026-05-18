@@ -25,6 +25,7 @@ const OUR_TABLES = [
   'llmCallIdempotency',
   'crossBorderTransfers',
   'authCodes',
+  'studentSessions',
 ] as const;
 
 type Tables = Record<string, { [' indexes'](): { indexDescriptor: string; fields: string[] }[] }>;
