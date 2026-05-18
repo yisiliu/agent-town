@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* Tailwind v4 keeps configuration in CSS via @theme. Theme tokens land
+   here as the plan's UI work begins (Task 16+); for the scaffold we
+   stick with Tailwind's defaults. */
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  height: 100%;
+}

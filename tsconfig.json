@@ -16,8 +16,7 @@
   "include": [
     "tests/**/*.ts",
     "convex/**/*.ts",
-    "shell/src/**/*.ts",
-    "shell/src/**/*.tsx"
+    "shell/tests/**/*.ts"
   ],
   "exclude": [
     "**/_generated/**",
@@ -25,6 +24,7 @@
     "**/dist/**",
     "**/build/**",
     "**/.next/**",
-    "ai-town-fork/**"
+    "ai-town-fork/**",
+    "shell/src/**"
   ]
 }
