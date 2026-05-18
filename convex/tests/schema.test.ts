@@ -5,6 +5,10 @@ import schema from '../schema';
 // alias-resolved module.
 import upstream from 'ai-town/upstream';
 
+// Includes the 14 tables listed in Task 3 plus `authCodes` added in Task 4
+// (the plan listed it as `auth.codes` in Task 4 prose but missed it from
+// the Task 3 enumeration; bookkeeping resolved here so future tasks that
+// add tables update the same enumeration).
 const OUR_TABLES = [
   'twins',
   'cards',
@@ -20,6 +24,7 @@ const OUR_TABLES = [
   'rateLimits',
   'llmCallIdempotency',
   'crossBorderTransfers',
+  'authCodes',
 ] as const;
 
 type Tables = Record<string, { [' indexes'](): { indexDescriptor: string; fields: string[] }[] }>;

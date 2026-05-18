@@ -12,6 +12,7 @@ import { reflections } from './reflections';
 import { rateLimits } from './rateLimits';
 import { llmCallIdempotency } from './llmCallIdempotency';
 import { crossBorderTransfers } from './crossBorderTransfers';
+import { authCodes } from './authCodes';
 
 export const ourTables = {
   twins,
@@ -28,4 +29,5 @@ export const ourTables = {
   rateLimits,
   llmCallIdempotency,
   crossBorderTransfers,
+  authCodes,
 };

@@ -11,7 +11,11 @@
   "devDependencies": {
     "@types/node": "^25.9.0",
     "convex": "^1.39.1",
+    "convex-test": "^0.0.53",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
   }
 }

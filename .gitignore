@@ -8,4 +8,9 @@ build/
 .env.*.local
 .DS_Store
 _generated/
+# Exempt the shared convex/ deployment _generated stubs — committed as
+# placeholders so tests run on a fresh clone before the first
+# `convex codegen`. Real codegen overwrites these at deploy time.
+!convex/_generated/
+!convex/_generated/**
 *.log
