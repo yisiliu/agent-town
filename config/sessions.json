@@ -1,0 +1,4 @@
+{
+  "_comment": "Scheduled class sessions in absolute UTC. The cron at convex/ours/crons/sessionWindow.ts auto-resumes the town at startUtc and auto-freezes at endUtc. Instructor populates this before semester start; redeploy required after edits (file is bundled, not read at runtime).",
+  "sessions": []
+}

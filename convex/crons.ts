@@ -8,6 +8,15 @@ const crons = cronJobs();
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const ref = internal as any;
 
+// Spec §3.2 — auto-resume/freeze the town at scheduled session
+// boundaries. Runs every minute; handler is cheap (one config-driven
+// computation + one mutation, no-op when state already matches).
+crons.interval(
+  'session-window',
+  { minutes: 1 },
+  ref.ours.crons.sessionWindow.default,
+);
+
 // Spec §3.5 — keep the RunPod replica warm in the run-up to each
 // scheduled class. The handler is a no-op outside the 5-min lead
 // window so the cron itself is cheap to run at this cadence.
