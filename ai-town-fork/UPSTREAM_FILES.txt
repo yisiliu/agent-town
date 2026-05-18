@@ -60,7 +60,7 @@
 ./convex/aiTown/inputs.ts
 ./convex/aiTown/insertInput.ts
 ./convex/aiTown/location.ts
-./convex/aiTown/main.ts
+./convex/aiTown/main.ts   # EXEMPT: tick-gate (Task 14)
 ./convex/aiTown/movement.ts
 ./convex/aiTown/player.ts
 ./convex/aiTown/playerDescription.ts

@@ -6,6 +6,10 @@ import { internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { Id } from '../_generated/dataModel';
 import { ENGINE_ACTION_DURATION } from '../constants';
+// Spec §3.2 tick gate (Task 14). Reads our worldState singleton; when
+// frozen, runStep exits its inner loop without ticking the engine.
+// See ../ours/townHooks.ts for the cross-tree contract.
+import { isTownTickAllowed } from '../ours/townHooks';
 
 export async function createEngine(ctx: MutationCtx) {
   const now = Date.now();
@@ -103,6 +107,10 @@ export const runStep = internalAction({
       let now = Date.now();
       const deadline = now + args.maxDuration;
       while (now < deadline) {
+        // Spec §3.2: town only ticks during scheduled class hours.
+        // Cron may flip worldState mid-action, so we re-check each
+        // iteration and exit early when frozen.
+        if (!(await isTownTickAllowed(ctx))) break;
         await game.runStep(ctx, now);
         const sleepUntil = Math.min(now + game.stepDuration, deadline);
         await sleep(sleepUntil - now);
