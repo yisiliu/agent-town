@@ -26,6 +26,10 @@ const OUR_TABLES = [
   'crossBorderTransfers',
   'authCodes',
   'studentSessions',
+  'instructors',
+  'instructorAuthenticators',
+  'instructorChallenges',
+  'instructorSessions',
 ] as const;
 
 type Tables = Record<string, { [' indexes'](): { indexDescriptor: string; fields: string[] }[] }>;

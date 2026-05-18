@@ -14,6 +14,10 @@ import { llmCallIdempotency } from './llmCallIdempotency';
 import { crossBorderTransfers } from './crossBorderTransfers';
 import { authCodes } from './authCodes';
 import { studentSessions } from './studentSessions';
+import { instructors } from './instructors';
+import { instructorAuthenticators } from './instructorAuthenticators';
+import { instructorChallenges } from './instructorChallenges';
+import { instructorSessions } from './instructorSessions';
 
 export const ourTables = {
   twins,
@@ -32,4 +36,8 @@ export const ourTables = {
   crossBorderTransfers,
   authCodes,
   studentSessions,
+  instructors,
+  instructorAuthenticators,
+  instructorChallenges,
+  instructorSessions,
 };
