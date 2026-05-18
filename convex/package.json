@@ -1,0 +1,12 @@
+{
+  "name": "convex-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'convex dev placeholder — schema + deploy in Task 3'"
+  },
+  "dependencies": {
+    "convex": "^1.39.1"
+  }
+}

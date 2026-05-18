@@ -1,0 +1,9 @@
+{
+  "name": "ai-town-fork",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'ai-town-fork dev placeholder — Vite/React fork in Task 2'"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "agent-town",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["shell", "ai-town-fork", "convex"],
+  "scripts": {
+    "test": "vitest run",
+    "lint": "echo 'lint stub — will add per-workspace later'"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  }
+}

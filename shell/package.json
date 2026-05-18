@@ -1,0 +1,9 @@
+{
+  "name": "shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'shell dev placeholder — Next.js scaffold in Task 2'"
+  }
+}
