@@ -1,0 +1,12 @@
+name: LLM chokepoint check
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-no-bare-llm-calls.sh
+      - run: bash scripts/test-llm-chokepoint-check.sh
