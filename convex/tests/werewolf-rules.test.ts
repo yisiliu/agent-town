@@ -7,6 +7,11 @@ import {
   applyTurn,
   checkWin,
 } from '../ours/interactions/werewolf/rules';
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  parseTurnText,
+} from '../ours/interactions/werewolf/prompts';
 import type { WerewolfState } from '../ours/interactions/werewolf/state';
 
 const P = (n: number) => `twin_${n}` as unknown as Id<'twins'>;
@@ -193,6 +198,131 @@ describe('werewolf rules — day-vote', () => {
     expect(s.publicLog.some((l) => l.toLowerCase().includes('deadlock'))).toBe(true);
     expect(s.phase).toBe('night-werewolf');
     expect(s.day).toBe(1);
+  });
+});
+
+describe('werewolf prompts — buildSystemPrompt', () => {
+  it('wraps card in UNTRUSTED_CARD delimiters and appends role briefing', () => {
+    const s = initialState(five, 42);
+    const wolf = werewolfOf(s);
+    const p = buildSystemPrompt({
+      state: s,
+      actorTwinId: wolf,
+      cardMarkdown: 'I am Alice. I am 25 years old.',
+      aliveNames: { [wolf as unknown as string]: 'Alice' },
+    });
+    expect(p).toContain('<UNTRUSTED_CARD>');
+    expect(p).toContain('I am Alice.');
+    expect(p).toContain('</UNTRUSTED_CARD>');
+    expect(p).toContain('WEREWOLF');
+    expect(p).toContain('JSON');
+  });
+
+  it('seer briefing for the seer', () => {
+    const s = initialState(five, 42);
+    const seer = seerOf(s);
+    const p = buildSystemPrompt({
+      state: s,
+      actorTwinId: seer,
+      cardMarkdown: 'persona',
+      aliveNames: {},
+    });
+    expect(p).toContain('SEER');
+  });
+});
+
+describe('werewolf prompts — buildUserPrompt', () => {
+  it('night-werewolf-kill lists alive non-werewolves as candidates', () => {
+    const s = initialState(five, 42);
+    const wolf = werewolfOf(s);
+    const names: Record<string, string> = {};
+    for (const id of s.alive) names[id as unknown as string] = `P${id}`;
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: wolf,
+      phase: 'night-werewolf',
+      kind: 'kill',
+      visibleTurns: [],
+      aliveNames: names,
+    });
+    expect(p).toContain('werewolf');
+    // werewolf must not be in candidate list
+    expect(p.toLowerCase()).not.toContain(`${(wolf as unknown as string).toLowerCase()} (p${wolf}`);
+    // at least 4 non-werewolves should appear
+    const candidateLines = p
+      .split('\n')
+      .filter((l) => l.startsWith('  - twin_'))
+      .length;
+    expect(candidateLines).toBeGreaterThanOrEqual(4);
+  });
+
+  it('day-speak prompt includes seer knowledge for the seer', () => {
+    let s = initialState(five, 42);
+    const wolf = werewolfOf(s);
+    const seer = seerOf(s);
+    const victim = s.alive.find((id) => id !== wolf && id !== seer)!;
+    s = applyTurn(s, { phase: 'night-werewolf', kind: 'kill', actorTwinId: wolf, data: { target: victim } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolf } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: seer,
+      phase: 'day-speak',
+      kind: 'speak',
+      visibleTurns: [],
+      aliveNames: {},
+    });
+    expect(p).toContain('SEER KNOWLEDGE');
+    expect(p).toContain('werewolf');
+  });
+});
+
+describe('werewolf prompts — parseTurnText', () => {
+  it('parses well-formed JSON envelope for vote', () => {
+    const r = parseTurnText(
+      '{"reasoning":"Bob acted weird.","action":{"target":"twin_2"}}',
+      'vote',
+      { aliveIds: [P(2), P(3)] },
+    );
+    expect(r.ok).toBe(true);
+    expect((r.data as { target: string }).target).toBe('twin_2');
+  });
+
+  it('rejects target not in alive set', () => {
+    const r = parseTurnText(
+      '{"action":{"target":"twin_99"}}',
+      'vote',
+      { aliveIds: [P(2)] },
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it('tolerates JSON wrapped in code fences', () => {
+    const r = parseTurnText(
+      '```json\n{"action":{"target":"twin_2"}}\n```',
+      'vote',
+      { aliveIds: [P(2)] },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it('parses speak with no action', () => {
+    const r = parseTurnText(
+      '{"reasoning":"I am suspicious of Bob."}',
+      'speak',
+      { aliveIds: [] },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it('rejects malformed JSON', () => {
+    const r = parseTurnText('not json at all', 'vote', { aliveIds: [] });
+    expect(r.ok).toBe(false);
+  });
+
+  it('rejects missing action.target on vote', () => {
+    const r = parseTurnText('{"reasoning":"hmm"}', 'vote', { aliveIds: [P(2)] });
+    expect(r.ok).toBe(false);
   });
 });
 
