@@ -225,8 +225,8 @@ describe('upload pipeline — end-to-end through each fixture', () => {
     expect(out.state).toBe('rejected_validation');
     if (out.state !== 'rejected_validation') return;
     const errString = out.errors.join('|');
-    expect(errString).toMatch(/missing_section.*Voice/);
-    expect(errString).toMatch(/missing_section.*Signature phrases/);
+    expect(errString).toMatch(/missing_section.*Layer 2/);
+    expect(errString).toMatch(/missing_section.*Layer 3/);
   });
 });
 

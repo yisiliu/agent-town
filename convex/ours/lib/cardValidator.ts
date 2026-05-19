@@ -1,10 +1,11 @@
 import { parse as parseYAML, YAMLParseError } from 'yaml';
 
-// Server-side card.md validator. Mirrors `distill validate` from Plan 1
-// (the Pydantic CardFrontmatter schema) but in TypeScript and lighter:
-// no LLM/PII passes here — those are async Convex actions (Task 9).
-//
-// The validator is pure: input string → discriminated result. No I/O.
+// KEEP IN SYNC with shell/src/lib/card-validator.ts. The shell validates
+// client-side for fast feedback; this is the authoritative server-side
+// gate per spec §4.9 ("Schema validation in CLI/web AND cheap
+// re-validation server-side on submit"). Convex workspace can't import
+// from shell workspace, hence the duplication. Both files should be
+// behaviorally identical — if you change one, change the other.
 
 export const REGISTERS = [
   'personal',
@@ -17,10 +18,23 @@ export type Register = (typeof REGISTERS)[number];
 export const LANGUAGES = ['zh', 'en', 'mixed'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
+// distill-twin's render output (post-2026-05 refactor) groups the
+// persona by Layer 0-5 + standalone sections. Family routes prompt
+// selection inside distill; agent-town doesn't currently branch on it
+// but validates the value so we don't accidentally accept a typo.
+export const FAMILIES = [
+  'self',
+  'colleague',
+  'relationship',
+  'celebrity',
+] as const;
+export type Family = (typeof FAMILIES)[number];
+
 export const ALLOWED_FRONTMATTER_KEYS = [
   'pseudonym',
   'real_name_hash',
   'plane',
+  'family',
   'schema_version',
   'created',
   'register',
@@ -28,6 +42,9 @@ export const ALLOWED_FRONTMATTER_KEYS = [
   'source_stats',
 ] as const;
 
+// family + source_stats are optional in the validator (lenient at the
+// boundary — distill enforces them upstream, and a manually-edited
+// card without source_stats should still upload).
 export const REQUIRED_FRONTMATTER_KEYS = [
   'pseudonym',
   'real_name_hash',
@@ -38,37 +55,37 @@ export const REQUIRED_FRONTMATTER_KEYS = [
   'language',
 ] as const;
 
-// Spec §4 example card lists nine section headers. Required for v1; future
-// schema versions can extend without breaking older cards (see schema_version).
-// Headers are matched after apostrophe canonicalisation (’ → '), so cards
-// can use either form.
+// distill-twin renders body as Layer 0-5 + Worldview + Example exchanges,
+// plus the optional "How they've changed" section (only present when
+// Stage 3 detected real opinion drift). Headers are matched after
+// apostrophe canonicalisation (’ → '), so the curly form works too.
 export const REQUIRED_SECTIONS = [
-  'System prompt',
-  'Voice',
-  'Signature phrases',
-  'Background',
-  'Beliefs & preoccupations',
-  'How they react',
-  "What they won't say",
+  'Layer 0 — Core personality',
+  'Layer 1 — Identity',
+  'Layer 2 — Expression style',
+  'Layer 3 — Decisions & judgment',
+  'Layer 4 — Interpersonal behavior',
+  'Layer 5 — Boundaries & red lines',
   'Worldview principles',
   'Example exchanges',
 ] as const;
 
-// Practical caps in characters. The spec mentions "per-section content-length
-// caps (§4.7)" without nailing exact numbers — these are sized so a typical
-// 800-1500 word card fits comfortably while still capping pathological
-// uploads. Adjust here as we calibrate against real student cards.
+// Practical character caps. Distill's own SECTION_MAX_WORDS uses word
+// counts (English-biased); we use characters so Chinese cards aren't
+// over-counted. Numbers chosen as (distill_words × ~6 chars/word) —
+// roomy enough that distill's soft warnings never become our hard
+// rejections under normal output.
 export const SECTION_LENGTH_CAPS: Record<string, number> = {
-  'System prompt': 2000,
-  Voice: 2000,
-  'Signature phrases': 5000,
-  Background: 3000,
-  'Beliefs & preoccupations': 5000,
-  'How they react': 3000,
-  "What they won't say": 2000,
-  'What they won’t say': 2000,
-  'Worldview principles': 3000,
-  'Example exchanges': 5000,
+  'Layer 0 — Core personality': 1500,
+  'Layer 1 — Identity': 2000,
+  'Layer 2 — Expression style': 4000,
+  'Layer 3 — Decisions & judgment': 3500,
+  'Layer 4 — Interpersonal behavior': 3500,
+  'Layer 5 — Boundaries & red lines': 2000,
+  'Worldview principles': 2500,
+  "How they've changed": 2500,
+  'How they’ve changed': 2500,
+  'Example exchanges': 4000,
 };
 
 function canonicaliseSection(s: string): string {
@@ -79,6 +96,7 @@ export interface CardFrontmatter {
   pseudonym: string;
   real_name_hash: string;
   plane: string;
+  family?: Family;
   schema_version: number;
   created: string;
   register: Register;
@@ -166,6 +184,18 @@ export function validateCard(input: string): ValidationResult {
       allowed: LANGUAGES,
     });
   }
+  if (
+    'family' in fm &&
+    fm.family !== undefined &&
+    !FAMILIES.includes(fm.family as Family)
+  ) {
+    errors.push({
+      kind: 'invalid_enum',
+      key: 'family',
+      value: fm.family,
+      allowed: FAMILIES,
+    });
+  }
   if ('schema_version' in fm && typeof fm.schema_version !== 'number') {
     errors.push({
       kind: 'invalid_type',
@@ -211,9 +241,9 @@ export function validateCard(input: string): ValidationResult {
 
 function parseSections(body: string): Record<string, string> {
   const out: Record<string, string> = {};
-  // ATX-style headers at column 0, e.g. "# Voice". Captures level 1 only —
-  // the schema uses a flat list of H1 sections and embedded H2+ would be
-  // unusual; if a card ships an H2 we ignore it for cap purposes.
+  // ATX-style headers at column 0, e.g. "# Layer 1 — Identity".
+  // Captures level 1 only; embedded H2+ are part of the parent
+  // section's content.
   const lines = body.split('\n');
   let currentHeader: string | null = null;
   let buf: string[] = [];

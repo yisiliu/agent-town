@@ -17,10 +17,21 @@ export type Register = (typeof REGISTERS)[number];
 export const LANGUAGES = ['zh', 'en', 'mixed'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
+// See convex/ours/lib/cardValidator.ts for the canonical comment —
+// this file MUST stay in sync.
+export const FAMILIES = [
+  'self',
+  'colleague',
+  'relationship',
+  'celebrity',
+] as const;
+export type Family = (typeof FAMILIES)[number];
+
 export const ALLOWED_FRONTMATTER_KEYS = [
   'pseudonym',
   'real_name_hash',
   'plane',
+  'family',
   'schema_version',
   'created',
   'register',
@@ -38,37 +49,28 @@ export const REQUIRED_FRONTMATTER_KEYS = [
   'language',
 ] as const;
 
-// Spec §4 example card lists nine section headers. Required for v1; future
-// schema versions can extend without breaking older cards (see schema_version).
-// Headers are matched after apostrophe canonicalisation (’ → '), so cards
-// can use either form.
 export const REQUIRED_SECTIONS = [
-  'System prompt',
-  'Voice',
-  'Signature phrases',
-  'Background',
-  'Beliefs & preoccupations',
-  'How they react',
-  "What they won't say",
+  'Layer 0 — Core personality',
+  'Layer 1 — Identity',
+  'Layer 2 — Expression style',
+  'Layer 3 — Decisions & judgment',
+  'Layer 4 — Interpersonal behavior',
+  'Layer 5 — Boundaries & red lines',
   'Worldview principles',
   'Example exchanges',
 ] as const;
 
-// Practical caps in characters. The spec mentions "per-section content-length
-// caps (§4.7)" without nailing exact numbers — these are sized so a typical
-// 800-1500 word card fits comfortably while still capping pathological
-// uploads. Adjust here as we calibrate against real student cards.
 export const SECTION_LENGTH_CAPS: Record<string, number> = {
-  'System prompt': 2000,
-  Voice: 2000,
-  'Signature phrases': 5000,
-  Background: 3000,
-  'Beliefs & preoccupations': 5000,
-  'How they react': 3000,
-  "What they won't say": 2000,
-  'What they won’t say': 2000,
-  'Worldview principles': 3000,
-  'Example exchanges': 5000,
+  'Layer 0 — Core personality': 1500,
+  'Layer 1 — Identity': 2000,
+  'Layer 2 — Expression style': 4000,
+  'Layer 3 — Decisions & judgment': 3500,
+  'Layer 4 — Interpersonal behavior': 3500,
+  'Layer 5 — Boundaries & red lines': 2000,
+  'Worldview principles': 2500,
+  "How they've changed": 2500,
+  'How they’ve changed': 2500,
+  'Example exchanges': 4000,
 };
 
 function canonicaliseSection(s: string): string {
@@ -164,6 +166,18 @@ export function validateCard(input: string): ValidationResult {
       key: 'language',
       value: fm.language,
       allowed: LANGUAGES,
+    });
+  }
+  if (
+    'family' in fm &&
+    fm.family !== undefined &&
+    !FAMILIES.includes(fm.family as Family)
+  ) {
+    errors.push({
+      kind: 'invalid_enum',
+      key: 'family',
+      value: fm.family,
+      allowed: FAMILIES,
     });
   }
   if ('schema_version' in fm && typeof fm.schema_version !== 'number') {

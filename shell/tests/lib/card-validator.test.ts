@@ -36,8 +36,14 @@ describe('validateCard — allowlist + structure', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const missing = r.errors.filter((e) => e.kind === 'missing_section');
-      // Required minus three present (System prompt, Voice, Background) = 6 missing.
-      const presentInFixture = ['System prompt', 'Voice', 'Background'];
+      // missing_section.md has Layer 0, Layer 1, Worldview, and Example
+      // exchanges; the other four Layers are missing.
+      const presentInFixture = [
+        'Layer 0 — Core personality',
+        'Layer 1 — Identity',
+        'Worldview principles',
+        'Example exchanges',
+      ];
       const expectedMissing = REQUIRED_SECTIONS.filter(
         (s) => !presentInFixture.includes(s),
       );
@@ -106,17 +112,19 @@ describe('validateCard — frontmatter required keys', () => {
 describe('validateCard — section length caps', () => {
   it('flags a section that exceeds its cap', () => {
     const base = loadFixture('valid');
-    // Append a fat string to Voice. Cap for Voice is 2000 → pad to 2200.
-    const overflow = 'X '.repeat(1200); // ~2400 chars after spaces, > 2000
+    // Layer 1 — Identity cap is 2000 chars. Pad past it.
+    const overflow = 'X '.repeat(1200);
     const oversized = base.replace(
-      '# Voice\n\nShort clauses',
-      `# Voice\n\n${overflow}Short clauses`,
+      '# Layer 1 — Identity\n\n一个内向',
+      `# Layer 1 — Identity\n\n${overflow}一个内向`,
     );
     const r = validateCard(oversized);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const tooLong = r.errors.find(
-        (e) => e.kind === 'section_too_long' && e.section === 'Voice',
+        (e) =>
+          e.kind === 'section_too_long' &&
+          e.section === 'Layer 1 — Identity',
       );
       expect(tooLong).toBeDefined();
     }

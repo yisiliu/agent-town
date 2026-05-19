@@ -119,8 +119,8 @@ describe('fixture cards — end-to-end gate behavior', () => {
       const missing = v.errors
         .filter((e) => e.kind === 'missing_section')
         .map((e) => (e as { section: string }).section);
-      expect(missing).toContain('Voice');
-      expect(missing).toContain('Signature phrases');
+      expect(missing).toContain('Layer 2 — Expression style');
+      expect(missing).toContain('Layer 3 — Decisions & judgment');
     }
   });
 });
