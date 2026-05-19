@@ -3,7 +3,7 @@ import type {
   GenericMutationCtx,
 } from 'convex/server';
 import type schema from '../../schema';
-import { issueCodeFor } from './authCodeStore';
+import { writePreparedCode, type PreparedCode } from './authCodeStore';
 import { recordActive, recordRejected } from './uploadResultsStore';
 import type { FinalOutcome } from './uploadFlowCore';
 
@@ -20,17 +20,20 @@ export interface FinalizeScanArgs {
   promptInjectionDecision: ScanStatus;
   scanReasons: string[];
   now: number;
+  // Required when outcome.decision === 'pass'. Bcrypt hashing must
+  // happen in the caller (a Node action) because Convex's V8 mutation
+  // runtime forbids setTimeout, which bcryptjs uses internally.
+  preparedCodes?: {
+    spectate: PreparedCode;
+    control: PreparedCode;
+    edit: PreparedCode;
+  };
 }
 
 export type FinalizeScanResult =
   | { state: 'active' }
   | { state: 'rejected' };
 
-// Extracted from convex/ours/mutations/finalizeScan.ts so the upload
-// pipeline can be tested end-to-end via convexTest's t.run without
-// invoking the mutation through a function reference (the stubbed
-// _generated/api can't resolve action/mutation refs until convex
-// codegen runs against a real deployment).
 export async function finalizeScanCore(
   ctx: MutationCtx,
   args: FinalizeScanArgs,
@@ -46,18 +49,41 @@ export async function finalizeScanCore(
   }
 
   if (args.outcome.decision === 'pass') {
+    if (!args.preparedCodes) {
+      throw new Error(
+        'finalizeScan: preparedCodes required on pass — caller must hash codes before invoking',
+      );
+    }
     await ctx.db.patch(args.twinId, { state: 'active' });
-    const [spectate, control, edit] = await Promise.all([
-      issueCodeFor(ctx, args.twinId, 'spectate'),
-      issueCodeFor(ctx, args.twinId, 'control'),
-      issueCodeFor(ctx, args.twinId, 'edit'),
+    await Promise.all([
+      writePreparedCode(
+        ctx,
+        args.twinId,
+        'spectate',
+        args.preparedCodes.spectate.hash,
+        args.now,
+      ),
+      writePreparedCode(
+        ctx,
+        args.twinId,
+        'control',
+        args.preparedCodes.control.hash,
+        args.now,
+      ),
+      writePreparedCode(
+        ctx,
+        args.twinId,
+        'edit',
+        args.preparedCodes.edit.hash,
+        args.now,
+      ),
     ]);
     await recordActive(ctx, {
       uploadSessionToken: args.uploadSessionToken,
       codes: {
-        spectate: spectate.plaintext,
-        control: control.plaintext,
-        edit: edit.plaintext,
+        spectate: args.preparedCodes.spectate.plaintext,
+        control: args.preparedCodes.control.plaintext,
+        edit: args.preparedCodes.edit.plaintext,
       },
       now: args.now,
     });

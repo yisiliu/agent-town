@@ -6,7 +6,10 @@
 // project-agent-town-architecture memo).
 
 const TOGETHER_ENDPOINT = 'https://api.together.xyz/v1/chat/completions';
-const LLAMA_GUARD_MODEL = 'meta-llama/Meta-Llama-Guard-3-8B';
+// Spec §4.9 names "Llama Guard 3 (or the latest release at implementation
+// time)". Together deprecated Guard-3 from serverless and serves Guard-4
+// (12B) instead — same task, same reply format ("safe" / "unsafe\n<cats>").
+const LLAMA_GUARD_MODEL = 'meta-llama/Llama-Guard-4-12B';
 
 export interface LlamaGuardVerdict {
   verdict: 'safe' | 'unsafe';

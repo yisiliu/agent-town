@@ -41,9 +41,17 @@ Read the text and reply with EXACTLY ONE word, no punctuation or explanation:
 - NONE if the text reads as a fictional or generic persona with no identifying details.
 Reply with HIGH, MEDIUM, or NONE only.`;
 
+// Tolerant of wrapped or verbose model output — picks the highest
+// severity that appears as a whole word anywhere in the response.
+// Word-boundary check prevents matching inside other tokens
+// (e.g. "MEDIUM" matching inside the word "medium-rare" doesn't occur
+// since regex \b includes hyphen as a boundary anyway, but `\bNONE\b`
+// is the safe form).
 function parseSeverity(raw: string): LLMSeverity | null {
-  const upper = raw.trim().toUpperCase();
-  if (upper === 'HIGH' || upper === 'MEDIUM' || upper === 'NONE') return upper;
+  const upper = raw.toUpperCase();
+  if (/\bHIGH\b/.test(upper)) return 'HIGH';
+  if (/\bMEDIUM\b/.test(upper)) return 'MEDIUM';
+  if (/\bNONE\b/.test(upper)) return 'NONE';
   return null;
 }
 

@@ -49,7 +49,12 @@ export async function scanForPromptInjection(
   let verdict: LlamaGuardVerdict;
   try {
     verdict = await deps.classify(req.text);
-  } catch {
+  } catch (err) {
+    // Log the underlying error to Convex function logs for debugging
+    // (visible via `bunx convex logs`), but surface only a clean
+    // user-facing message — provider details shouldn't leak into the
+    // student-visible rejection screen.
+    console.error('promptInjectionScan classifier failed:', err);
     return {
       decision: 'block',
       reasons: ['classifier error — fail-closed per spec §4.9'],

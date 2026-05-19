@@ -16,7 +16,7 @@ import {
   readUploadResult,
 } from '../ours/lib/uploadResultsStore';
 import { finalizeScanCore } from '../ours/lib/finalizeScanCore';
-import { verifyCodeFor } from '../ours/lib/authCodeStore';
+import { prepareCode, verifyCodeFor } from '../ours/lib/authCodeStore';
 
 const modules = import.meta.glob('../**/*.ts');
 
@@ -109,6 +109,17 @@ async function runPipeline(args: PipelineRunArgs): Promise<Outcome> {
   const outcome = reconcileScanResults(pii, promptInjection);
 
   // Stage 5 — finalize (issues codes on pass; stores errors on block).
+  // Bcrypt-hash codes outside the mutation handler — mirrors prod
+  // (runTwinScans Node action prepares them before calling the V8
+  // mutation, which can't run bcryptjs).
+  const preparedCodes =
+    outcome.decision === 'pass'
+      ? {
+          spectate: await prepareCode(),
+          control: await prepareCode(),
+          edit: await prepareCode(),
+        }
+      : undefined;
   await t.run(async (ctx) => {
     await finalizeScanCore(ctx, {
       twinId,
@@ -118,6 +129,7 @@ async function runPipeline(args: PipelineRunArgs): Promise<Outcome> {
       promptInjectionDecision: promptInjection.decision,
       scanReasons: [...pii.reasons, ...promptInjection.reasons],
       now,
+      preparedCodes,
     });
   });
 
@@ -237,6 +249,11 @@ describe('pipeline state assertions — DB shape after each outcome', () => {
       return { tId, cId, token };
     });
 
+    const codes = {
+      spectate: await prepareCode(),
+      control: await prepareCode(),
+      edit: await prepareCode(),
+    };
     await t.run(async (ctx) =>
       finalizeScanCore(ctx, {
         twinId: ctx0.tId,
@@ -246,6 +263,7 @@ describe('pipeline state assertions — DB shape after each outcome', () => {
         promptInjectionDecision: 'pass',
         scanReasons: [],
         now: 1,
+        preparedCodes: codes,
       }),
     );
 

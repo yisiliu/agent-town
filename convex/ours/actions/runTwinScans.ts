@@ -1,13 +1,19 @@
+'use node';
+
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { reconcileScanResults } from '../lib/uploadFlowCore';
+import { prepareCode } from '../lib/authCodeStore';
 import type { ScanResult } from '../lib/piiScanCore';
 
-// Scheduled by uploadTwin. Runs both scans, reconciles the result via
-// reconcileScanResults, then hands the outcome to finalizeScan. Each
-// scan is invoked through ctx.runAction so the §5.1 chokepoint is
-// honored for the PII LLM hop.
+// Scheduled by uploadTwin. Runs both scans, reconciles, prepares
+// per-pass 6-digit codes (bcrypt hashing happens here), then hands
+// the outcome + prepared codes to finalizeScan.
+//
+// Node action because bcryptjs uses setTimeout internally, which the
+// Convex V8 runtime forbids. PII + prompt-injection scans are
+// invoked through ctx.runAction so the §5.1 chokepoint is honored.
 export default internalAction({
   args: { twinId: v.id('twins') },
   handler: async (ctx, { twinId }) => {
@@ -45,6 +51,17 @@ export default internalAction({
     const outcome = reconcileScanResults(pii, promptInjection);
     const scanReasons = [...pii.reasons, ...promptInjection.reasons];
 
+    // Pre-compute bcrypt-hashed codes on pass so the finalizeScan
+    // mutation only does DB writes (V8 runtime can't run bcrypt).
+    const preparedCodes =
+      outcome.decision === 'pass'
+        ? {
+            spectate: await prepareCode(),
+            control: await prepareCode(),
+            edit: await prepareCode(),
+          }
+        : undefined;
+
     await ctx.runMutation(ref.ours.mutations.finalizeScan.default, {
       twinId,
       uploadSessionToken,
@@ -53,6 +70,7 @@ export default internalAction({
       promptInjectionDecision: promptInjection.decision,
       scanReasons,
       now: Date.now(),
+      preparedCodes,
     });
     /* eslint-enable @typescript-eslint/no-explicit-any */
   },
