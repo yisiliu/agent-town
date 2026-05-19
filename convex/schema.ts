@@ -1,20 +1,37 @@
-import { defineSchema } from 'convex/server';
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 import { ourTables } from './ours/tables';
+import { aiTownTables } from './aiTown/schema';
+import { agentTables } from './agent/schema';
+import { engineTables } from './engine/schema';
+import { conversationId, playerId } from './aiTown/ids';
 
-// SHELL-ONLY DEPLOYMENT (current state).
+// Composed schema: our additive tables PLUS ai-town's vendored
+// runtime tables. The ai-town subtree is synced from
+// ai-town-fork/convex/ via scripts/sync-ai-town.sh — see that
+// script's header for what's pulled in.
 //
-// The original design spread `upstream.tables` from `ai-town/upstream`
-// here so a single Convex deployment held both our additive tables and
-// ai-town's. That alias resolves in vitest + tsc but NOT in Convex's
-// esbuild bundler at deploy time — see docs/running-locally.md §9.
-//
-// Until the composition is resolved (sync-ai-town script, repo refactor,
-// or dual-deployment HTTP bridge per options 1-3 in the doc), this
-// deployment only carries our tables. The upload flow doesn't need
-// ai-town's tables; Task 15's twin→player mapping will need them.
-//
-// The schema test still asserts upstream tables present, via the
-// vitest alias — see convex/tests/schema.test.ts.
+// `music` and `messages` live inline in ai-town-fork's top-level
+// schema.ts (we don't sync that file because it'd collide with this
+// one); replicated here verbatim so the runtime can find them.
 export default defineSchema({
+  music: defineTable({
+    storageId: v.string(),
+    type: v.union(v.literal('background'), v.literal('player')),
+  }),
+
+  messages: defineTable({
+    conversationId,
+    messageUuid: v.string(),
+    author: playerId,
+    text: v.string(),
+    worldId: v.optional(v.id('worlds')),
+  })
+    .index('conversationId', ['worldId', 'conversationId'])
+    .index('messageUuid', ['conversationId', 'messageUuid']),
+
+  ...agentTables,
+  ...aiTownTables,
+  ...engineTables,
   ...ourTables,
 });
