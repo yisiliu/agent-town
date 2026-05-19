@@ -74,3 +74,75 @@ describe('startInteraction', () => {
     ).rejects.toThrow(/needs ≥4/);
   });
 });
+
+describe('appendInteractionTurn', () => {
+  it('applies a turn and advances turnIndex', async () => {
+    const t = convexTest(schema, modules);
+    const participants = await seedFiveTwins(t);
+    const id = await t.mutation(internal.ours.mutations.startInteraction.default, {
+      type: 'werewolf',
+      participants,
+      seed: 42,
+    });
+    const inter = await t.run((ctx) => ctx.db.get(id));
+    const state = inter!.state as { roles: Record<string, string>; alive: Id<'twins'>[] };
+    const werewolf = Object.entries(state.roles).find(([, r]) => r === 'werewolf')![0] as unknown as Id<'twins'>;
+    const target = state.alive.find((i) => i !== werewolf)!;
+
+    const res = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+      interactionId: id,
+      expectedTurnIndex: 0,
+      phase: 'night-werewolf',
+      kind: 'kill',
+      actorTwinId: werewolf,
+      text: 'I take them.',
+      data: { target },
+      visibility: [werewolf],
+    });
+    expect(res.applied).toBe(true);
+    expect(res.ended).toBe(false);
+
+    const after = await t.run((ctx) => ctx.db.get(id));
+    expect(after!.turnIndex).toBe(1);
+    expect(after!.phase).toBe('night-seer');
+  });
+
+  it('rejects stale_turnIndex on the second concurrent write', async () => {
+    const t = convexTest(schema, modules);
+    const participants = await seedFiveTwins(t);
+    const id = await t.mutation(internal.ours.mutations.startInteraction.default, {
+      type: 'werewolf',
+      participants,
+      seed: 42,
+    });
+    const inter = await t.run((ctx) => ctx.db.get(id));
+    const state = inter!.state as { roles: Record<string, string>; alive: Id<'twins'>[] };
+    const werewolf = Object.entries(state.roles).find(([, r]) => r === 'werewolf')![0] as unknown as Id<'twins'>;
+    const target = state.alive.find((i) => i !== werewolf)!;
+
+    const a = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+      interactionId: id,
+      expectedTurnIndex: 0,
+      phase: 'night-werewolf',
+      kind: 'kill',
+      actorTwinId: werewolf,
+      text: 'first',
+      data: { target },
+      visibility: [werewolf],
+    });
+    expect(a.applied).toBe(true);
+
+    const b = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+      interactionId: id,
+      expectedTurnIndex: 0,  // stale
+      phase: 'night-werewolf',
+      kind: 'kill',
+      actorTwinId: werewolf,
+      text: 'second',
+      data: { target },
+      visibility: [werewolf],
+    });
+    expect(b.applied).toBe(false);
+    expect((b as { reason: string }).reason).toBe('stale_turnIndex');
+  });
+});
