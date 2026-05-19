@@ -16,6 +16,15 @@ crons.interval(
   { minutes: 1 },
   ref.ours.crons.sessionWindow.default,
 );
+
+// Interactions framework heartbeat. Picks up freshly-started + stalled
+// games. Sub-minute cadence inside one game comes from the takeTurn
+// action's self-scheduled chain (+2s × 5 turns per chain).
+crons.interval(
+  'interaction-tick',
+  { minutes: 1 },
+  ref.ours.crons.interactionTick.default,
+);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default crons;
