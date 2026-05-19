@@ -172,20 +172,17 @@ export default internalAction({
       data?: unknown;
     };
     if (parsed.ok) {
-      // Extract `reasoning` for `text`; data already validated.
-      let reasoning = llmResponse;
-      try {
-        const obj = JSON.parse(
-          llmResponse.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, ''),
-        );
-        if (typeof obj.reasoning === 'string') reasoning = obj.reasoning;
-      } catch {
-        // keep llmResponse as text
-      }
+      // parsed.data already has {thinking, say?, target?, use_save?, poison_target?}.
+      // turn.text is the PUBLIC `say` (visible to other agents per visibility
+      // rules); turn.data carries everything including the private `thinking`.
+      const d = (parsed.data as Record<string, unknown>) ?? {};
+      const sayField = typeof d.say === 'string' ? d.say : '';
       appendArgs = {
         kind: plan.kind,
-        text: reasoning,
-        data: parsed.data,
+        // For night-only turns (no `say` produced), text is empty —
+        // visibility array already restricts who sees this turn.
+        text: sayField,
+        data: d,
       };
     } else {
       appendArgs = {

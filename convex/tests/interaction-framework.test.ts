@@ -95,7 +95,7 @@ describe('appendInteractionTurn', () => {
       interactionId: id,
       expectedTurnIndex: 0,
       phase: 'night-werewolf',
-      kind: 'kill',
+      kind: 'wolf-kill-bid',
       actorTwinId: werewolf,
       text: 'I take them.',
       data: { target },
@@ -126,7 +126,7 @@ describe('appendInteractionTurn', () => {
       interactionId: id,
       expectedTurnIndex: 0,
       phase: 'night-werewolf',
-      kind: 'kill',
+      kind: 'wolf-kill-bid',
       actorTwinId: werewolf,
       text: 'first',
       data: { target },
@@ -138,7 +138,7 @@ describe('appendInteractionTurn', () => {
       interactionId: id,
       expectedTurnIndex: 0,  // stale
       phase: 'night-werewolf',
-      kind: 'kill',
+      kind: 'wolf-kill-bid',
       actorTwinId: werewolf,
       text: 'second',
       data: { target },
@@ -182,11 +182,21 @@ describe('full werewolf game — plan-driven smoke test', () => {
       } else {
         const role = state.roles[actor as unknown as string];
         const alive = state.alive;
-        if (plan.kind === 'kill') {
+        if (plan.kind === 'wolf-kill-bid') {
           // Werewolf takes first non-werewolf.
           const target = alive.find((id) => state.roles[id as unknown as string] !== 'werewolf')!;
           data = { target };
           text = `Tonight I take ${target}.`;
+        } else if (plan.kind === 'witch-act') {
+          // Witch skips (5p has no witch so this branch isn't hit, but defensive).
+          data = {};
+        } else if (plan.kind === 'last-words') {
+          text = 'My last words.';
+        } else if (plan.kind === 'hunter-shoot') {
+          // 5p has no hunter; defensive
+          const target = alive.find((id) => id !== actor)!;
+          data = { target };
+          text = `I shoot ${target}.`;
         } else if (plan.kind === 'peek') {
           // Seer peeks the werewolf.
           const werewolf = alive.find((id) => state.roles[id as unknown as string] === 'werewolf')!;
@@ -247,7 +257,7 @@ describe('full werewolf game — plan-driven smoke test', () => {
       interactionId,
       expectedTurnIndex: 0,
       phase: 'night-werewolf',
-      kind: 'kill',
+      kind: 'wolf-kill-bid',
       actorTwinId: werewolf,
       text: 'kill',
       data: { target },
@@ -261,7 +271,7 @@ describe('full werewolf game — plan-driven smoke test', () => {
         .withIndex('by_interaction_and_turnIndex', (q) => q.eq('interactionId', interactionId))
         .collect(),
     );
-    const killTurn = turns.find((tr) => tr.kind === 'kill')!;
+    const killTurn = turns.find((tr) => tr.kind === 'wolf-kill-bid')!;
     expect(killTurn.visibility).not.toBe('public');
     expect(killTurn.visibility).toEqual([werewolf]);
 
