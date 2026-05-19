@@ -714,13 +714,18 @@ export function parseTurnText(
     return { ok: true, data: { thinking, say, target } };
   }
 
-  if (kind === 'sheriff-vote') {
+  if (kind === 'sheriff-vote' || kind === 'sheriff-pk-vote') {
     const target = typeof action?.target === 'string' ? action.target : undefined;
-    if (!target) return { ok: false, error: `sheriff-vote requires action.target` };
+    if (!target) return { ok: false, error: `${kind} requires action.target` };
     if (!allowed.includes(target)) {
-      return { ok: false, error: `sheriff-vote target "${target}" not in alive set` };
+      return { ok: false, error: `${kind} target "${target}" not in alive set` };
     }
     return { ok: true, data: { thinking, say, target } };
+  }
+
+  if (kind === 'sheriff-pk-speech') {
+    if (!say) return { ok: false, error: `sheriff-pk-speech requires "say"` };
+    return { ok: true, data: { thinking, say } };
   }
 
   if (kind === 'witch-act') {

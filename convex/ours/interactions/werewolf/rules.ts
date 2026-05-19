@@ -790,19 +790,36 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     (t.kind === 'sheriff-vote' || t.kind === 'sheriff-pk-vote' || t.kind === 'abstain')
   ) {
     const next = clone(s);
-    if ((t.kind === 'sheriff-vote' || t.kind === 'sheriff-pk-vote') && t.actorTwinId) {
+    if (t.actorTwinId) {
+      // Always mark the voter as having voted so planNextTurn moves on.
+      // Valid target → record the vote (tallied later).
+      // Invalid target or abstain → record sentinel '_abstain' (ignored at
+      // tally time; just prevents infinite-loop re-prompting). This protects
+      // against the LLM voting for a non-current-candidate (a common
+      // failure mode in PK rounds where the LLM picks a non-PK player).
       const target = (t.data as { target?: Id<'twins'> })?.target;
-      if (target && next.sheriffCandidates.includes(target)) {
-        next.sheriffVotes[asKey(t.actorTwinId)] = asKey(target);
+      const voterKey = asKey(t.actorTwinId);
+      const isElectorate = !next.sheriffCandidates.includes(t.actorTwinId);
+      if (isElectorate && !next.sheriffVotes[voterKey]) {
+        if (
+          t.kind !== 'abstain' &&
+          target &&
+          next.sheriffCandidates.includes(target)
+        ) {
+          next.sheriffVotes[voterKey] = asKey(target);
+        } else {
+          next.sheriffVotes[voterKey] = '_abstain';
+        }
       }
     }
     // Check if all 警下 (non-candidates) have voted.
     const electorate = next.alive.filter((id) => !next.sheriffCandidates.includes(id));
     const allVoted = electorate.every((id) => next.sheriffVotes[asKey(id)]);
     if (allVoted) {
-      // Tally
+      // Tally — only count real candidate votes; '_abstain' sentinels excluded.
       const tally: Record<string, number> = {};
       for (const v of Object.values(next.sheriffVotes)) {
+        if (v === '_abstain') continue;
         tally[v] = (tally[v] || 0) + 1;
       }
       let max = 0;
