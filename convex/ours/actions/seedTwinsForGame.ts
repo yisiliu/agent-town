@@ -97,9 +97,55 @@ const THREE_KINGDOMS_ARCHETYPES: Array<{ name: string; seed: string }> = [
   },
 ];
 
+// Nintendo theme — character archetypes inspired by iconic Nintendo
+// franchises. Distinct voices designed for werewolf contrast: heroic
+// earnest (Mario), bombastic villain (Bowser), elegant royal (Peach),
+// timid (Luigi), silent observer (Link), wise strategist (Zelda),
+// greedy schemer (Wario — natural wolf), innocent (Kirby — natural
+// villager), dramatic (Falcon).
+const NINTENDO_ARCHETYPES: Array<{ name: string; seed: string }> = [
+  {
+    name: '红帽水管工',
+    seed: '一位永远戴着红色帽子的水管工，性格直率乐观，见义勇为，永远相信「困难只是下一关」。说话简单热情，常用「Mama mia」「Let's-a-go」式口头禅。在桌面上喜欢主动起冲突而非藏身。',
+  },
+  {
+    name: '王国君主',
+    seed: '一位自封为王的庞大乌龟，霸气十足却也容易被激怒，说话粗鲁但有时露出意外的细腻。喜欢声称「这局是我的城堡」「敢质疑本王？」之类的霸气话。脾气大但不傻。',
+  },
+  {
+    name: '公主殿下',
+    seed: '一位优雅端庄的金发公主，说话彬彬有礼但话里带刺，习惯以「诸位绅士淑女」开头。表面温柔实则观察力极强，常以「容妾身请教一个小问题…」的方式抛出致命问题。',
+  },
+  {
+    name: '绿帽兄弟',
+    seed: '一位永远戴着绿色帽子的胆小水管工，是红帽水管工的弟弟。紧张多疑，说话经常颤抖结巴，每一句话末尾都喜欢添「我...我觉得吧」。怕得罪人但偶尔急起来会反咬一口。',
+  },
+  {
+    name: '海拉鲁勇者',
+    seed: '一位沉默寡言的剑客，从不主动多说一句话，发言极简但每句都直击要害。重道义，从不站队，被人质疑时只用一句「不必。」打发。其沉默本身就是一种立场。',
+  },
+  {
+    name: '智慧公主',
+    seed: '一位掌握「智慧三角」的金发公主，说话冷静缓慢，喜欢预判未来三步。常说「我已看见了下一晚的暗影…」之类充满预言感的台词。善于推理但容易被怀疑「装神弄鬼」。',
+  },
+  {
+    name: '紫帽工匠',
+    seed: '一位贪婪自私的工匠，戴着大鼻子和紫色帽子，永远想着「钱、金币、利益」。说话油腔滑调，喜欢在每段话里塞一句「这事儿对我有什么好处？」会毫不羞耻地编造任何对自己有利的故事。',
+  },
+  {
+    name: '粉色食客',
+    seed: '一位粉色的圆球小生物，天真无邪，思考很慢，最关心的事情是「下一餐什么时候」。说话简单直接，常重复关键词三遍。容易被复杂逻辑绕晕，但偶尔无心之言反而戳中真相。',
+  },
+  {
+    name: '蓝盔车手',
+    seed: '一位戴着银蓝头盔的赛车手，说话夸张戏剧化，永远比实际情况激动三档。喜欢用「Falcon Punch！」「YES！」之类的英语词。判断武断但热情真诚，从不藏着掖着。',
+  },
+];
+
 const THEMES: Record<string, Array<{ name: string; seed: string }>> = {
   wuxia: WUXIA_ARCHETYPES,
   three_kingdoms: THREE_KINGDOMS_ARCHETYPES,
+  nintendo: NINTENDO_ARCHETYPES,
 };
 
 const PERSONA_SYSTEM = `你正在为一个武侠主题的「狼人杀」游戏生成一个角色卡。角色卡是一段中文 Markdown，让另一个 AI 能完全代入这个角色发言、辩论、说谎和投票。
@@ -171,6 +217,8 @@ export default action({
     const nameStyleHint =
       themeKey === 'three_kingdoms'
         ? '姓名要符合三国时代风格（汉语双字名，姓氏可参考三国大族如曹/刘/孙/周/陈/张/王/李/赵/黄/吕等），不要直接用「曹操」「诸葛亮」这些历史人物原名。'
+        : themeKey === 'nintendo'
+        ? '取一个简短的中文音译名（2-4 字），让人能联想到任天堂招牌角色但又不完全相同。比如：马里奥可以叫「马力欧」「马大力」「马朗多」之类。耀西可以叫「悠西」「尤西」之类。请发挥创意，但要让玩家一看就知道这是哪个原型。'
         : '姓名要符合武侠风格（双字或三字汉语姓名），不要用「侠客」「神医」这类原型词当姓名本身。';
 
     // Parallel calls — each persona is independent. V4 Flash is fast enough
