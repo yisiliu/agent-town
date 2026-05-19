@@ -58,10 +58,14 @@ export const OUTPUT_TOKEN_CAPS: Record<CallType, number> = {
   // 1200 leaves reasoning room + room for a real-length reply.
   private_chat: 1200,
   // Multi-party game turn (werewolf, future plugins). JSON envelope with
-  // reasoning + structured action — plus V4 Pro's chain-of-thought before
-  // emitting content. Same sizing rationale as pii_scan/injection_scan
-  // (cap is a tail bound, not a target).
-  interaction_turn: 1200,
+  // thinking + say + structured action — plus V4 Pro's chain-of-thought
+  // before emitting content. Live test on 2026-05-19 showed 1200 cap
+  // truncating vote-phase output entirely (empty content): vote prompts
+  // include the full day's transcript so input is large, and V4 Pro burns
+  // multi-hundred-token reasoning chains deciding who to lynch. Bumped to
+  // 3000 — a tail bound. Per-turn cost worst case ~$0.0105 vs ~$0.0042 at
+  // 1200; for a 9p ~80-turn game that's ~$0.85 vs ~$0.34. Within budget.
+  interaction_turn: 3000,
   idle_thought: 80,
   move_decision: 40,
 };

@@ -97,6 +97,10 @@ export default internalAction({
         },
       )) as { applied: boolean; ended?: boolean };
       if (appendRes.applied && !appendRes.ended && chainCount + 1 < MAX_CHAIN) {
+        await ctx.runMutation(ref.ours.mutations.setInteractionInflight.default, {
+          interactionId: args.interactionId,
+          inflightSince: Date.now(),
+        });
         await ctx.scheduler.runAfter(
           CHAIN_DELAY_MS,
           ref.ours.actions.interactionTakeTurn.default,
@@ -191,7 +195,7 @@ export default internalAction({
       };
     }
 
-    let appendRes = (await ctx.runMutation(
+    const appendRes = (await ctx.runMutation(
       ref.ours.mutations.appendInteractionTurn.default,
       {
         interactionId: args.interactionId,
@@ -203,28 +207,29 @@ export default internalAction({
       },
     )) as { applied: boolean; reason?: string; ended?: boolean };
 
-    // Stale turnIndex — try once more after a re-read.
-    if (!appendRes.applied && appendRes.reason === 'stale_turnIndex') {
-      const fresh = (await ctx.runQuery(
-        ref.ours.queries.getInteraction.default,
-        { id: args.interactionId },
-      )) as Doc<'interactions'> | null;
-      if (fresh && fresh.status === 'in_progress') {
-        appendRes = (await ctx.runMutation(
-          ref.ours.mutations.appendInteractionTurn.default,
-          {
-            interactionId: args.interactionId,
-            expectedTurnIndex: fresh.turnIndex,
-            phase: plan.phase,
-            actorTwinId: plan.actorTwinId,
-            visibility: plan.visibility,
-            ...appendArgs,
-          },
-        )) as { applied: boolean; reason?: string; ended?: boolean };
-      }
+    // Drop on stale_turnIndex — DO NOT retry with the old plan against the
+    // new turnIndex. The first live game showed that pattern produces
+    // same-actor consecutive turns (the retry committed the prior actor's
+    // LLM output at the next cursor). The cron heartbeat will re-pick
+    // this interaction up cleanly with a fresh plan.
+    if (!appendRes.applied) {
+      console.warn(
+        'interactionTakeTurn dropped turn',
+        appendRes.reason,
+        'for',
+        args.interactionId,
+      );
+      return { status: 'dropped' as const, reason: appendRes.reason };
     }
 
-    if (appendRes.applied && !appendRes.ended && chainCount + 1 < MAX_CHAIN) {
+    if (!appendRes.ended && chainCount + 1 < MAX_CHAIN) {
+      // Set inflightSince BEFORE scheduling so the cron's dedup gate also
+      // covers chain-self-scheduled runs. (The previous appendInteractionTurn
+      // call cleared it; we reclaim it here for the next chain link.)
+      await ctx.runMutation(ref.ours.mutations.setInteractionInflight.default, {
+        interactionId: args.interactionId,
+        inflightSince: Date.now(),
+      });
       await ctx.scheduler.runAfter(
         CHAIN_DELAY_MS,
         ref.ours.actions.interactionTakeTurn.default,
