@@ -49,6 +49,12 @@ function clone(s: WerewolfState): WerewolfState {
     lastWordsQueue: s.lastWordsQueue.slice(),
     pendingHunterShot: s.pendingHunterShot,
     phaseAfterHunterShot: s.phaseAfterHunterShot,
+    sheriff: s.sheriff,
+    sheriffHas1_5x: s.sheriffHas1_5x,
+    sheriffCandidates: s.sheriffCandidates.slice(),
+    sheriffClaimCursor: s.sheriffClaimCursor,
+    sheriffVotes: { ...s.sheriffVotes },
+    sheriffElectionDone: s.sheriffElectionDone,
     cursor: s.cursor,
     pendingVotes: { ...s.pendingVotes },
     publicLog: s.publicLog.slice(),
@@ -136,6 +142,12 @@ export function initialState(
     lastWordsQueue: [],
     pendingHunterShot: undefined,
     phaseAfterHunterShot: undefined,
+    sheriff: undefined,
+    sheriffHas1_5x: false,
+    sheriffCandidates: [],
+    sheriffClaimCursor: 0,
+    sheriffVotes: {},
+    sheriffElectionDone: false,
     cursor: 0,
     pendingVotes: {},
     publicLog: [`Day 0: Game begins with ${participants.length} players.`],
@@ -174,6 +186,13 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     return next;
   }
   if (fromNightResolve) {
+    // Day-1 morning: run sheriff election before day-speak.
+    if (!next.sheriffElectionDone) {
+      next.phase = 'sheriff-claim';
+      next.sheriffClaimCursor = 0;
+      next.cursor = 0;
+      return next;
+    }
     next.phase = 'day-speak';
     next.cursor = 0;
   } else {
@@ -241,6 +260,38 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
 
   if (s.phase === 'night-resolve') {
     return { phase: 'night-resolve', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'The night ends; the village wakes.' };
+  }
+
+  if (s.phase === 'sheriff-claim') {
+    const actor = s.alive[s.sheriffClaimCursor];
+    if (!actor) {
+      // No alive players? Defensive.
+      return null;
+    }
+    return { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, visibility: 'public' };
+  }
+
+  if (s.phase === 'sheriff-vote') {
+    // Only 警下 (non-candidates) vote. Find the next non-candidate who
+    // hasn't voted yet.
+    const remainingVoters = s.alive.filter(
+      (id) => !s.sheriffCandidates.includes(id) && !s.sheriffVotes[asKey(id)],
+    );
+    const actor = remainingVoters[0];
+    if (!actor) {
+      // No remaining voters — election resolves in applyTurn after the last
+      // vote. Defensive system turn.
+      return { phase: 'sheriff-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'Sheriff election ends.' };
+    }
+    return { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: actor, visibility: 'public' };
+  }
+
+  if (s.phase === 'sheriff-pull-vote') {
+    if (!s.sheriff) {
+      // No sheriff → skip directly to day-vote.
+      return { phase: 'sheriff-pull-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff to pull-vote.' };
+    }
+    return { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: s.sheriff, visibility: 'public' };
   }
 
   if (s.phase === 'hunter-shoot') {
@@ -370,8 +421,13 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
 function applyDayResolve(s: WerewolfState): WerewolfState {
   const next = clone(s);
   const tally: Record<string, number> = {};
-  for (const target of Object.values(next.pendingVotes)) {
-    tally[target] = (tally[target] || 0) + 1;
+  for (const [voterId, target] of Object.entries(next.pendingVotes)) {
+    // Sheriff who still holds the original badge gets 1.5x weight.
+    const weight =
+      next.sheriff && asKey(next.sheriff) === voterId && next.sheriffHas1_5x
+        ? 1.5
+        : 1.0;
+    tally[target] = (tally[target] || 0) + weight;
   }
   let max = 0;
   let winner: string | null = null;
@@ -401,6 +457,9 @@ function applyDayResolve(s: WerewolfState): WerewolfState {
       // Day-lynch → after the shot, advance to next night.
       next.phaseAfterHunterShot = 'night-werewolf';
     }
+    // If the lynched player is the sheriff, the badge decision happens in
+    // their last-words turn. The badge defaults to destroyed if they don't
+    // explicitly pass (handled in the last-words applyTurn).
   } else {
     next.publicLog.push(
       `Day ${next.day + 1}: The village deadlocked — no one was lynched.`,
@@ -502,8 +561,157 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
   // ---- last-words ----
   if (s.phase === 'last-words' && (t.kind === 'last-words' || t.kind === 'abstain')) {
     const next = clone(s);
+    const speaker = next.lastWordsQueue[0];
+    // If the speaker is the sheriff, handle badge decision. Default = destroy.
+    if (speaker && next.sheriff && speaker === next.sheriff) {
+      const data = t.data as { badge_decision?: string } | undefined;
+      const dec = data?.badge_decision;
+      if (dec && dec.startsWith('pass:')) {
+        const passToId = dec.slice('pass:'.length).trim();
+        // Validate the target is still alive (sheriff died this round, so
+        // target must be in current alive list, not including sheriff).
+        const target = passToId as unknown as Id<'twins'>;
+        if (next.alive.includes(target)) {
+          next.sheriff = target;
+          next.sheriffHas1_5x = false; // inheritor doesn't get 1.5x
+          next.publicLog.push(
+            `Day ${next.day + 1}: ${speaker} passed the sheriff badge to ${target}.`,
+          );
+        } else {
+          // Invalid target → destroy.
+          next.sheriff = undefined;
+          next.sheriffHas1_5x = false;
+          next.publicLog.push(
+            `Day ${next.day + 1}: ${speaker} destroyed the sheriff badge.`,
+          );
+        }
+      } else {
+        // Destroy (explicit or default).
+        next.sheriff = undefined;
+        next.sheriffHas1_5x = false;
+        next.publicLog.push(
+          `Day ${next.day + 1}: ${speaker} destroyed the sheriff badge.`,
+        );
+      }
+    }
     next.lastWordsQueue = next.lastWordsQueue.slice(1);
     return transitionAfterResolve(next, false);
+  }
+
+  // ---- sheriff-claim ----
+  if (s.phase === 'sheriff-claim' && (t.kind === 'sheriff-claim' || t.kind === 'abstain')) {
+    const next = clone(s);
+    if (t.kind === 'sheriff-claim' && t.actorTwinId) {
+      const data = t.data as { run?: boolean } | undefined;
+      if (data?.run) {
+        next.sheriffCandidates.push(t.actorTwinId);
+      }
+    }
+    next.sheriffClaimCursor += 1;
+    if (next.sheriffClaimCursor >= next.alive.length) {
+      // Claims done. Decide what comes next.
+      if (next.sheriffCandidates.length === 0) {
+        // Nobody ran → no sheriff this game. Advance to day-speak.
+        next.publicLog.push(
+          `Day ${next.day + 1}: 无人上警 — the village has no sheriff this game.`,
+        );
+        next.sheriffElectionDone = true;
+        next.phase = 'day-speak';
+        next.cursor = 0;
+      } else if (next.sheriffCandidates.length === next.alive.length) {
+        // Everyone ran → no 警下 to vote → 流警 (no sheriff).
+        next.publicLog.push(
+          `Day ${next.day + 1}: 全员上警，无人投票 — 流警, no sheriff this game.`,
+        );
+        next.sheriffElectionDone = true;
+        next.sheriffCandidates = [];
+        next.phase = 'day-speak';
+        next.cursor = 0;
+      } else if (next.sheriffCandidates.length === 1) {
+        // Unopposed → auto-elected.
+        const winner = next.sheriffCandidates[0]!;
+        next.sheriff = winner;
+        next.sheriffHas1_5x = true;
+        next.publicLog.push(
+          `Day ${next.day + 1}: ${winner} 单独上警, auto-elected sheriff (1.5x vote weight).`,
+        );
+        next.sheriffElectionDone = true;
+        next.sheriffCandidates = [];
+        next.phase = 'day-speak';
+        next.cursor = 0;
+      } else {
+        // Multiple candidates → 警下 vote.
+        next.phase = 'sheriff-vote';
+      }
+    }
+    return next;
+  }
+
+  // ---- sheriff-vote ----
+  if (s.phase === 'sheriff-vote' && (t.kind === 'sheriff-vote' || t.kind === 'abstain')) {
+    const next = clone(s);
+    if (t.kind === 'sheriff-vote' && t.actorTwinId) {
+      const target = (t.data as { target?: Id<'twins'> })?.target;
+      if (target && next.sheriffCandidates.includes(target)) {
+        next.sheriffVotes[asKey(t.actorTwinId)] = asKey(target);
+      }
+    }
+    // Check if all 警下 (non-candidates) have voted.
+    const electorate = next.alive.filter((id) => !next.sheriffCandidates.includes(id));
+    const allVoted = electorate.every((id) => next.sheriffVotes[asKey(id)]);
+    if (allVoted) {
+      // Tally
+      const tally: Record<string, number> = {};
+      for (const v of Object.values(next.sheriffVotes)) {
+        tally[v] = (tally[v] || 0) + 1;
+      }
+      let max = 0;
+      let winner: string | null = null;
+      let tied = false;
+      for (const [c, n] of Object.entries(tally)) {
+        if (n > max) { max = n; winner = c; tied = false; }
+        else if (n === max) { tied = true; }
+      }
+      if (winner && !tied && max > 0) {
+        const sheriffId = winner as unknown as Id<'twins'>;
+        next.sheriff = sheriffId;
+        next.sheriffHas1_5x = true;
+        next.publicLog.push(
+          `Day ${next.day + 1}: ${sheriffId} elected sheriff with ${max} votes (1.5x weight).`,
+        );
+      } else {
+        // Tie or no votes → no sheriff (v1 skips the PK speech).
+        next.publicLog.push(
+          `Day ${next.day + 1}: Sheriff election tied/inconclusive — no sheriff this game.`,
+        );
+      }
+      next.sheriffCandidates = [];
+      next.sheriffVotes = {};
+      next.sheriffElectionDone = true;
+      next.phase = 'day-speak';
+      next.cursor = 0;
+    }
+    return next;
+  }
+
+  // ---- sheriff-vote system fallback ----
+  if (s.phase === 'sheriff-vote' && t.kind === 'system') {
+    // Defensive — if planNextTurn returned a system because no voters left.
+    const next = clone(s);
+    next.sheriffCandidates = [];
+    next.sheriffVotes = {};
+    next.sheriffElectionDone = true;
+    next.phase = 'day-speak';
+    next.cursor = 0;
+    return next;
+  }
+
+  // ---- sheriff-pull-vote ----
+  if (s.phase === 'sheriff-pull-vote' && (t.kind === 'sheriff-pull-vote' || t.kind === 'abstain' || t.kind === 'system')) {
+    const next = clone(s);
+    next.phase = 'day-vote';
+    next.cursor = 0;
+    return next;
   }
 
   // ---- day-speak ----
@@ -511,8 +719,14 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     const next = clone(s);
     next.cursor += 1;
     if (next.cursor >= next.alive.length) {
-      next.phase = 'day-vote';
-      next.cursor = 0;
+      // After all alive players spoke, if there's a sheriff alive, they
+      // get the final pull-vote turn before voting begins.
+      if (next.sheriff && next.alive.includes(next.sheriff)) {
+        next.phase = 'sheriff-pull-vote';
+      } else {
+        next.phase = 'day-vote';
+        next.cursor = 0;
+      }
     }
     return next;
   }

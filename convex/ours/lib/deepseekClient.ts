@@ -7,13 +7,23 @@ import type { LLMCallArgs, LLMCallResult } from './llmRouterCore';
 // thin fetch wrapper with no SDK.
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
-const TIMEOUT_MS = 30_000;
+// 60s per attempt — V4 Pro reasoning mode + larger max_tokens (now up to
+// 4500 for interaction_turn) can take >30s end-to-end, especially under
+// parallel load. 30s was too aggressive: persona-gen batch calls of 9
+// timed out on the empty-content retry path.
+const TIMEOUT_MS = 60_000;
 // V4 Pro burns reasoning tokens before emitting content; even at a generous
 // max_tokens cap, the model occasionally cuts off mid-CoT and returns empty
-// content. On the first 9p game ~30% of wolf-bid calls came back empty.
-// One retry brings the success rate to >99% in practice; the retry pays the
-// full token cost again but is rare enough that overall spend stays bounded.
-const EMPTY_CONTENT_RETRIES = 1;
+// content. Round-2 9p game (2026-05-19) still showed ~40% empty rate on
+// day-speak prompts (large transcript + V4 Pro reasoning).
+//
+// Strategy: 2 retries. The second retry falls back to V4 Flash (no reasoning
+// mode → no CoT token burn → always emits content). V4 Flash is lower quality
+// but reliable. This bounds the empty-content failure mode at <1% practical
+// (would require V4 Pro to fail twice AND V4 Flash to also produce empty).
+const EMPTY_CONTENT_RETRIES = 2;
+const FRONTIER_MODEL = 'deepseek-v4-pro';
+const LOCAL_MODEL = 'deepseek-v4-flash';
 
 function apiKey(): string {
   const key = process.env.DEEPSEEK_API_KEY;
@@ -31,6 +41,11 @@ export async function callDeepseekAPI(
 ): Promise<LLMCallResult> {
   let lastResult: LLMCallResult | undefined;
   for (let attempt = 0; attempt <= EMPTY_CONTENT_RETRIES; attempt++) {
+    // Attempt 0: original model. Attempt 1: original model (same retry).
+    // Attempt 2: if V4 Pro was the original, fall back to V4 Flash.
+    // V4 Flash has no reasoning mode so it always emits content directly.
+    const effectiveModel =
+      attempt >= 2 && req.model === FRONTIER_MODEL ? LOCAL_MODEL : req.model;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
@@ -42,7 +57,7 @@ export async function callDeepseekAPI(
           authorization: `Bearer ${apiKey()}`,
         },
         body: JSON.stringify({
-          model: req.model,
+          model: effectiveModel,
           max_tokens: req.maxTokens,
           messages: [
             { role: 'system', content: req.system },
@@ -56,14 +71,10 @@ export async function callDeepseekAPI(
       }
       lastResult = parseDeepseekReply(await res.json());
       if (lastResult.text.trim().length > 0) return lastResult;
-      // Empty content → retry once. Don't pass through; the caller likely
-      // depends on non-empty output (game turns, classifier output, etc.).
     } finally {
       clearTimeout(timer);
     }
   }
-  // All retries exhausted with empty content — return the last attempt so
-  // the caller can decide (some paths treat empty as abstain).
   return lastResult ?? { text: '', usage: { input_tokens: 0, output_tokens: 0 } };
 }
 

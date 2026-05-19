@@ -25,6 +25,23 @@ function byRole(s: WerewolfState, role: string): Id<'twins'>[] {
     .map(([id]) => id as unknown as Id<'twins'>);
 }
 
+// Helper: drive the sheriff-claim phase with every alive player declining
+// to run. Result: no sheriff this game, immediate transition to day-speak.
+// Used by tests that exercise non-sheriff mechanics on Day 1.
+function skipSheriffElection(s: WerewolfState): WerewolfState {
+  let cur = s;
+  while (cur.phase === 'sheriff-claim') {
+    const actor = cur.alive[cur.sheriffClaimCursor]!;
+    cur = applyTurn(cur, {
+      phase: 'sheriff-claim',
+      kind: 'sheriff-claim',
+      actorTwinId: actor,
+      data: { run: false },
+    });
+  }
+  return cur;
+}
+
 describe('werewolf rules — 5p initialState (fallback config)', () => {
   it('assigns 1 werewolf, 1 seer, 3 villagers for 5 players', () => {
     const s = initialState(five, 42);
@@ -141,6 +158,9 @@ describe('werewolf rules — witch potions', () => {
     // resolve
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.alive).toContain(seer); // seer survived
+    // Day-1 morning: sheriff election. Skip it for this test.
+    expect(s.phase).toBe('sheriff-claim');
+    s = skipSheriffElection(s);
     expect(s.phase).toBe('day-speak');
   });
 
@@ -196,6 +216,7 @@ describe('werewolf rules — hunter', () => {
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    s = skipSheriffElection(s);
     expect(s.phase).toBe('day-speak');
 
     // Skip day-speak (8 alive after seer killed)
@@ -239,7 +260,10 @@ describe('werewolf rules — hunter', () => {
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.alive).not.toContain(hunter); // poisoned dead
     expect(s.pendingHunterShot).toBeUndefined(); // blocked!
-    expect(s.phase).toBe('day-speak'); // straight to day
+    // Day-1 morning sheriff election runs first, then day-speak.
+    expect(s.phase).toBe('sheriff-claim');
+    s = skipSheriffElection(s);
+    expect(s.phase).toBe('day-speak');
   });
 });
 
@@ -258,6 +282,7 @@ describe('werewolf rules — last-words', () => {
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    s = skipSheriffElection(s);
 
     // Day-speak
     for (let i = 0; i < s.alive.length; i++) {
@@ -277,6 +302,181 @@ describe('werewolf rules — last-words', () => {
     expect(s.lastWordsQueue).not.toContain(target);
     // After last-words, advance to next night
     expect(s.phase).toBe('night-werewolf');
+  });
+});
+
+describe('werewolf rules — sheriff election', () => {
+  // Helper: run a 9p night through, return state at the start of sheriff-claim.
+  function nightOneToSheriffClaim(): WerewolfState {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.phase).toBe('sheriff-claim');
+    return s;
+  }
+
+  it('all decline → no sheriff, advance to day-speak', () => {
+    let s = nightOneToSheriffClaim();
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: false } });
+    }
+    expect(s.phase).toBe('day-speak');
+    expect(s.sheriff).toBeUndefined();
+    expect(s.sheriffElectionDone).toBe(true);
+  });
+
+  it('single candidate auto-elected with 1.5x weight', () => {
+    let s = nightOneToSheriffClaim();
+    const candidate = s.alive[0]!;
+    // First player runs, all others decline.
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      const run = actor === candidate;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
+    }
+    expect(s.phase).toBe('day-speak');
+    expect(s.sheriff).toBe(candidate);
+    expect(s.sheriffHas1_5x).toBe(true);
+  });
+
+  it('multiple candidates → sheriff-vote phase', () => {
+    let s = nightOneToSheriffClaim();
+    const candA = s.alive[0]!;
+    const candB = s.alive[1]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      const run = actor === candA || actor === candB;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
+    }
+    expect(s.phase).toBe('sheriff-vote');
+    expect(s.sheriffCandidates).toEqual([candA, candB]);
+    expect(s.sheriffElectionDone).toBe(false);
+
+    // 警下 (7 non-candidates) vote — all for candA
+    while (s.phase === 'sheriff-vote' && s.alive.filter((id) => !s.sheriffCandidates.includes(id) && !s.sheriffVotes[id as unknown as string]).length > 0) {
+      const remaining = s.alive.filter((id) => !s.sheriffCandidates.includes(id) && !s.sheriffVotes[id as unknown as string]);
+      const voter = remaining[0]!;
+      s = applyTurn(s, { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: voter, data: { target: candA } });
+    }
+    expect(s.phase).toBe('day-speak');
+    expect(s.sheriff).toBe(candA);
+    expect(s.sheriffHas1_5x).toBe(true);
+  });
+
+  it('sheriff vote 1.5x weight tips a tied tally', () => {
+    // Use 4p game so the math is clearer. Actually, sheriff election runs
+    // for any size, but with 9p we need an actual scenario where 1.5x tips.
+    // Setup: 9p, run sheriff election, then drive day-1 vote where sheriff
+    // votes target X and 1 other player also votes X; another target gets
+    // 2 votes. Without 1.5, target X = 2 (tied); with 1.5, target X = 2.5
+    // (wins).
+    let s = nightOneToSheriffClaim();
+    const sheriffCand = s.alive[0]!;
+    // sheriff is candidate; everyone else declines
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, {
+        phase: 'sheriff-claim',
+        kind: 'sheriff-claim',
+        actorTwinId: actor,
+        data: { run: actor === sheriffCand },
+      });
+    }
+    expect(s.sheriff).toBe(sheriffCand);
+
+    // Drive day-speak (8 alive after night-1 kill).
+    while (s.phase === 'day-speak') {
+      const actor = s.alive[s.cursor]!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
+    }
+    // After all spoke, sheriff-pull-vote triggers (sheriff alive).
+    expect(s.phase).toBe('sheriff-pull-vote');
+    s = applyTurn(s, { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: sheriffCand });
+    expect(s.phase).toBe('day-vote');
+
+    // Now construct vote pattern: 4 alive non-sheriffs vote target X (2 votes)
+    // vs target Y (2 votes), sheriff votes X (+1.5) → X wins 3.5 vs 2.
+    // 8 alive total; pick 2 distinct targets.
+    const tgtX = s.alive[1]!;
+    const tgtY = s.alive[2]!;
+    const voters = s.alive.slice();
+    let xVotes = 0, yVotes = 0;
+    for (const v of voters) {
+      let target = tgtX;
+      if (v === sheriffCand) {
+        target = tgtX; // sheriff votes X
+      } else if (xVotes < 2 && v !== tgtX) {
+        target = tgtX; xVotes += 1;
+      } else if (yVotes < 4 && v !== tgtY) {
+        target = tgtY; yVotes += 1;
+      }
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: v, data: { target } });
+    }
+    // After auto-resolve, lynched should be tgtX (with 1.5x boost it tops).
+    expect(s.publicLog.some((l) => l.includes(`lynch ${tgtX}`))).toBe(true);
+  });
+
+  it('dying sheriff destroys badge by default', () => {
+    let s = nightOneToSheriffClaim();
+    const sheriffCand = s.alive[0]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: actor === sheriffCand } });
+    }
+    // Drive day-speak
+    while (s.phase === 'day-speak') {
+      const actor = s.alive[s.cursor]!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
+    }
+    // sheriff-pull-vote then day-vote
+    s = applyTurn(s, { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: sheriffCand });
+    // Everyone votes sheriff → lynch sheriff
+    for (const v of s.alive) {
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: v, data: { target: sheriffCand } });
+    }
+    expect(s.phase).toBe('last-words');
+    expect(s.lastWordsQueue).toContain(sheriffCand);
+    // Sheriff dies; last-words with no badge_decision → destroy
+    s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: sheriffCand, text: 'bye' });
+    expect(s.sheriff).toBeUndefined();
+    expect(s.sheriffHas1_5x).toBe(false);
+  });
+
+  it('dying sheriff passes badge — inheritor gets sheriff but NOT 1.5x', () => {
+    let s = nightOneToSheriffClaim();
+    const sheriffCand = s.alive[0]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: actor === sheriffCand } });
+    }
+    while (s.phase === 'day-speak') {
+      const actor = s.alive[s.cursor]!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
+    }
+    s = applyTurn(s, { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: sheriffCand });
+    for (const v of s.alive) {
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: v, data: { target: sheriffCand } });
+    }
+    // Pass badge to second-seat alive player.
+    const heir = s.alive[0]!; // first remaining
+    s = applyTurn(s, {
+      phase: 'last-words',
+      kind: 'last-words',
+      actorTwinId: sheriffCand,
+      text: 'I pass the badge',
+      data: { badge_decision: `pass:${heir}` },
+    });
+    expect(s.sheriff).toBe(heir);
+    expect(s.sheriffHas1_5x).toBe(false);
   });
 });
 

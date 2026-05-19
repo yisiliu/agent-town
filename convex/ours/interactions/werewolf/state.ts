@@ -20,12 +20,22 @@ export type WerewolfPhase =
   // poisoned), enter 'hunter-shoot' phase. Else go to last-words for any
   // newly-dead player who has a last-words slot.
   | 'night-resolve'
+  // Day-1 only: each alive player declares whether they run for sheriff
+  // (上警 / 警下), and if running, gives a 1-2 sentence pitch.
+  | 'sheriff-claim'
+  // Day-1 only: only 警下 (non-candidates) vote for one of the candidates.
+  | 'sheriff-vote'
+  // Daily, after the regular day-speak: the sheriff (if elected) gives a
+  // final summary + recommended lynch target (归票). Non-binding —
+  // other players may follow or ignore.
+  | 'sheriff-pull-vote'
   // A dead hunter chooses one player to shoot down with them. Only enters
   // when hunter death was not by poison.
   | 'hunter-shoot'
   // A newly-dead player gets one public statement before being removed
-  // from `alive` list. Visible to all. Werewolves use this to claim
-  // special roles + misdirect; seers/witches can credibly out themselves.
+  // from `alive` list. Visible to all. If the dying player is the sheriff,
+  // their last-words ALSO carries their badge decision (pass to <id> /
+  // destroy).
   | 'last-words'
   // Each alive player speaks once per day (fixed seat order in v1).
   | 'day-speak'
@@ -89,6 +99,23 @@ export interface WerewolfState {
   // hunter's death originated so we don't accidentally skip a full
   // day-cycle when the hunter dies at night.
   phaseAfterHunterShot?: 'day-speak' | 'night-werewolf';
+
+  // ---- sheriff state ----
+  // Set once on Day 1 after sheriff-vote resolves. Stays set until sheriff
+  // dies (then either passes via lastWords.badgeDecision or undefined).
+  sheriff?: Id<'twins'>;
+  // Whether the original sheriff (who got 1.5x) is still holding the badge.
+  // Inheritors via 传警徽 get 归票 but NOT 1.5x.
+  sheriffHas1_5x: boolean;
+  // Day 1 only: candidates who declared 上警. Cleared after election.
+  sheriffCandidates: Id<'twins'>[];
+  // Day 1 only: claim turn cursor (one parallel pass over alive players).
+  sheriffClaimCursor: number;
+  // Day 1 only: 警下 votes during election. voterId → candidateId.
+  sheriffVotes: Record<string, string>;
+  // Tracks whether the sheriff election has been resolved at least once
+  // (the system never re-runs it after Day 1).
+  sheriffElectionDone: boolean;
 
   // ---- day state ----
   cursor: number; // index into alive[] for day-speak / day-vote
