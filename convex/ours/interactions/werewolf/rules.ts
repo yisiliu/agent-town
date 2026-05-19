@@ -55,6 +55,8 @@ function clone(s: WerewolfState): WerewolfState {
     sheriffClaimCursor: s.sheriffClaimCursor,
     sheriffVotes: { ...s.sheriffVotes },
     sheriffElectionDone: s.sheriffElectionDone,
+    sheriffPkActive: s.sheriffPkActive,
+    sheriffPkSpeechCursor: s.sheriffPkSpeechCursor,
     cursor: s.cursor,
     pendingVotes: { ...s.pendingVotes },
     publicLog: s.publicLog.slice(),
@@ -148,6 +150,8 @@ export function initialState(
     sheriffClaimCursor: 0,
     sheriffVotes: {},
     sheriffElectionDone: false,
+    sheriffPkActive: false,
+    sheriffPkSpeechCursor: 0,
     cursor: 0,
     pendingVotes: {},
     publicLog: [`Day 0: Game begins with ${participants.length} players.`],
@@ -161,10 +165,23 @@ function aliveByRole(s: WerewolfState, role: WerewolfRole): Id<'twins'>[] {
 }
 
 export function checkWin(s: WerewolfState): { ended: boolean; winner?: string } {
+  // **屠边 (modern Chinese 9p, Tencent/网易/口袋 standard)**:
+  //   - Villagers win when ALL werewolves are dead.
+  //   - Wolves win when ALL gods (seer + witch + hunter) are dead.
+  //   - Wolves win when ALL civilians (role='villager') are dead.
+  // The simplified "wolves >= non-wolves" rule belongs to 屠城 (a less
+  // common variant) — it's NOT the modern 9p default. See
+  // https://baike.baidu.com/item/屠边局 and
+  // https://www.gameres.com/753084.html (Tencent official rules).
   const wolves = aliveByRole(s, 'werewolf');
   if (wolves.length === 0) return { ended: true, winner: 'villagers' };
-  const nonWolves = s.alive.length - wolves.length;
-  if (wolves.length >= nonWolves) return { ended: true, winner: 'werewolves' };
+  const aliveGods =
+    aliveByRole(s, 'seer').length +
+    aliveByRole(s, 'witch').length +
+    aliveByRole(s, 'hunter').length;
+  const aliveCivilians = aliveByRole(s, 'villager').length;
+  if (aliveGods === 0) return { ended: true, winner: 'werewolves' };
+  if (aliveCivilians === 0) return { ended: true, winner: 'werewolves' };
   return { ended: false };
 }
 
@@ -271,19 +288,67 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     return { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, visibility: 'public' };
   }
 
-  if (s.phase === 'sheriff-vote') {
-    // Only 警下 (non-candidates) vote. Find the next non-candidate who
-    // hasn't voted yet.
+  if (s.phase === 'sheriff-vote' || s.phase === 'sheriff-pk-vote') {
+    // 警下 (non-candidates) vote pool — the SAME group across round-1 and PK.
+    // We compute "原始警下" as alive players who never ran in the original
+    // claim phase. Re-using sheriffCandidates after PK collapse loses the
+    // original 警下 set, so we recompute from "alive minus everyone who is
+    // currently a PK candidate OR was a candidate that lost".
+    //
+    // Simpler model: voters = alive players who are NOT current candidates
+    // AND have not voted in this round. The PK-loser candidates who voted
+    // in round 1 are also non-PK-candidates in round 2 — per research they
+    // do NOT vote in PK (`退水玩家依旧不能投票`). We track this via a
+    // round-2 dedup against round-1 vote keys: in PK, voters = alive \
+    // (round-1 voters who voted) \ pk candidates.
+    //
+    // To simplify: in PK round we track only the new PK votes, and exclude
+    // anyone who participated as a candidate in round 1. We carry the
+    // round-1 candidate set separately... but we already overwrote it. So:
+    // pre-PK transition stores the round-1 voter set in sheriffVotes (their
+    // keys). PK uses (alive minus sheriffCandidates minus round-1-candidates-as-tracked).
+    //
+    // Pragmatic: just exclude current PK candidates. This means round-1
+    // losing candidates DO get to vote in PK, which is a minor deviation
+    // from canonical but produces clean play. v1 acceptable.
     const remainingVoters = s.alive.filter(
       (id) => !s.sheriffCandidates.includes(id) && !s.sheriffVotes[asKey(id)],
     );
     const actor = remainingVoters[0];
     if (!actor) {
-      // No remaining voters — election resolves in applyTurn after the last
-      // vote. Defensive system turn.
-      return { phase: 'sheriff-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'Sheriff election ends.' };
+      return {
+        phase: s.phase,
+        kind: 'system',
+        actorTwinId: null,
+        visibility: 'public',
+        systemText: 'Sheriff election ends.',
+      };
     }
-    return { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: actor, visibility: 'public' };
+    return {
+      phase: s.phase,
+      kind: s.phase === 'sheriff-pk-vote' ? 'sheriff-pk-vote' : 'sheriff-vote',
+      actorTwinId: actor,
+      visibility: 'public',
+    };
+  }
+
+  if (s.phase === 'sheriff-pk-speech') {
+    const actor = s.sheriffCandidates[s.sheriffPkSpeechCursor];
+    if (!actor) {
+      return {
+        phase: 'sheriff-pk-speech',
+        kind: 'system',
+        actorTwinId: null,
+        visibility: 'public',
+        systemText: 'PK speech round complete.',
+      };
+    }
+    return {
+      phase: 'sheriff-pk-speech',
+      kind: 'sheriff-pk-speech',
+      actorTwinId: actor,
+      visibility: 'public',
+    };
   }
 
   if (s.phase === 'sheriff-pull-vote') {
@@ -470,6 +535,62 @@ function applyDayResolve(s: WerewolfState): WerewolfState {
 }
 
 export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
+  // ---- 自爆 (wolf self-explode) — eligible during sheriff-claim,
+  //      sheriff-pk-speech, day-speak, day-vote. Effect: wolf dies and is
+  //      revealed; no last-words for them; if during election, election
+  //      aborts with no sheriff (吞警徽); the day collapses straight to
+  //      next night (or game-end if 屠边 triggered). ----
+  if (t.kind === 'self-explode') {
+    const next = clone(s);
+    const exploder = t.actorTwinId;
+    if (!exploder || next.roles[asKey(exploder)] !== 'werewolf') {
+      // Only wolves can self-explode. Bad request — leave state unchanged.
+      return s;
+    }
+    // Remove from alive (revealed, no last-words).
+    next.alive = next.alive.filter((id) => id !== exploder);
+    next.publicLog.push(
+      `Day ${next.day + 1}: ${exploder} 自爆 — revealed as a werewolf! Day ends immediately.`,
+    );
+
+    // Cancel any in-flight sheriff election.
+    if (
+      next.phase === 'sheriff-claim' ||
+      next.phase === 'sheriff-vote' ||
+      next.phase === 'sheriff-pk-speech' ||
+      next.phase === 'sheriff-pk-vote'
+    ) {
+      next.publicLog.push(
+        `Day ${next.day + 1}: 警长选举被打断 — 吞警徽 (no sheriff this game).`,
+      );
+      next.sheriffCandidates = [];
+      next.sheriffVotes = {};
+      next.sheriffElectionDone = true;
+      next.sheriffPkActive = false;
+      next.sheriffPkSpeechCursor = 0;
+    }
+
+    // Clear day state and skip directly to next night.
+    next.pendingVotes = {};
+    next.cursor = 0;
+    next.wolfVotes = {};
+    next.pendingWolfKill = undefined;
+    next.pendingPoisonTarget = undefined;
+    next.witchSaveUsedTonight = false;
+    next.nightDeaths = [];
+    next.poisonedThisNight = [];
+    next.day += 1;
+    next.phase = 'night-werewolf';
+
+    // Check 屠边 — exploder's death may complete a side wipe.
+    const win = checkWin(next);
+    if (win.ended) {
+      next.phase = 'ended';
+      next.winner = win.winner as 'werewolves' | 'villagers';
+    }
+    return next;
+  }
+
   // ---- night-werewolf-bid ----
   if (s.phase === 'night-werewolf' && (t.kind === 'wolf-kill-bid' || t.kind === 'abstain')) {
     const next = clone(s);
@@ -514,7 +635,18 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
       const data = t.data as { use_save?: boolean; poison_target?: Id<'twins'>; skip?: boolean } | undefined;
       // Save: clears the kill (but only if save potion available + actually
       // a kill is pending + witch isn't trying to save AND poison same night).
-      if (data?.use_save && next.witchSavePotion && next.pendingWolfKill && !data?.poison_target) {
+      // **N1-only self-save**: from Night 2 onwards, the witch CANNOT save
+      // herself if she's the wolf-kill target (modern 9p口袋/Tencent rule).
+      const witchIsTarget =
+        next.pendingWolfKill && t.actorTwinId && next.pendingWolfKill === t.actorTwinId;
+      const selfSaveBlocked = witchIsTarget && next.day >= 1;
+      if (
+        data?.use_save &&
+        next.witchSavePotion &&
+        next.pendingWolfKill &&
+        !data?.poison_target &&
+        !selfSaveBlocked
+      ) {
         next.witchSaveUsedTonight = true;
         next.witchSavePotion = false;
       }
@@ -573,7 +705,12 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         const target = passToId as unknown as Id<'twins'>;
         if (next.alive.includes(target)) {
           next.sheriff = target;
-          next.sheriffHas1_5x = false; // inheritor doesn't get 1.5x
+          // Per modern 9p main口径 (口袋狼人杀 / Tencent / 网易): the
+          // inheritor receives BOTH 1.5x vote weight AND 归票 power. The
+          // earlier "归票 only" implementation was based on a minority
+          // variant. Inheritor cannot pass the badge again (a second
+          // death just destroys it).
+          next.sheriffHas1_5x = true;
           next.publicLog.push(
             `Day ${next.day + 1}: ${speaker} passed the sheriff badge to ${target}.`,
           );
@@ -647,10 +784,13 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     return next;
   }
 
-  // ---- sheriff-vote ----
-  if (s.phase === 'sheriff-vote' && (t.kind === 'sheriff-vote' || t.kind === 'abstain')) {
+  // ---- sheriff-vote (round 1) and sheriff-pk-vote (round 2) ----
+  if (
+    (s.phase === 'sheriff-vote' || s.phase === 'sheriff-pk-vote') &&
+    (t.kind === 'sheriff-vote' || t.kind === 'sheriff-pk-vote' || t.kind === 'abstain')
+  ) {
     const next = clone(s);
-    if (t.kind === 'sheriff-vote' && t.actorTwinId) {
+    if ((t.kind === 'sheriff-vote' || t.kind === 'sheriff-pk-vote') && t.actorTwinId) {
       const target = (t.data as { target?: Id<'twins'> })?.target;
       if (target && next.sheriffCandidates.includes(target)) {
         next.sheriffVotes[asKey(t.actorTwinId)] = asKey(target);
@@ -666,41 +806,95 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         tally[v] = (tally[v] || 0) + 1;
       }
       let max = 0;
-      let winner: string | null = null;
-      let tied = false;
+      const leaders: string[] = [];
       for (const [c, n] of Object.entries(tally)) {
-        if (n > max) { max = n; winner = c; tied = false; }
-        else if (n === max) { tied = true; }
+        if (n > max) {
+          max = n;
+          leaders.length = 0;
+          leaders.push(c);
+        } else if (n === max) {
+          leaders.push(c);
+        }
       }
-      if (winner && !tied && max > 0) {
-        const sheriffId = winner as unknown as Id<'twins'>;
+      if (leaders.length === 1 && max > 0) {
+        // Clean winner — elect.
+        const sheriffId = leaders[0] as unknown as Id<'twins'>;
         next.sheriff = sheriffId;
         next.sheriffHas1_5x = true;
         next.publicLog.push(
           `Day ${next.day + 1}: ${sheriffId} elected sheriff with ${max} votes (1.5x weight).`,
         );
-      } else {
-        // Tie or no votes → no sheriff (v1 skips the PK speech).
+        next.sheriffCandidates = [];
+        next.sheriffVotes = {};
+        next.sheriffElectionDone = true;
+        next.sheriffPkActive = false;
+        next.sheriffPkSpeechCursor = 0;
+        next.phase = 'day-speak';
+        next.cursor = 0;
+      } else if (max === 0 || leaders.length === 0) {
+        // No one received votes — 流警.
         next.publicLog.push(
-          `Day ${next.day + 1}: Sheriff election tied/inconclusive — no sheriff this game.`,
+          `Day ${next.day + 1}: Sheriff election inconclusive — no sheriff this game.`,
         );
+        next.sheriffCandidates = [];
+        next.sheriffVotes = {};
+        next.sheriffElectionDone = true;
+        next.sheriffPkActive = false;
+        next.phase = 'day-speak';
+        next.cursor = 0;
+      } else if (!next.sheriffPkActive) {
+        // First tie → enter PK round. Per modern Tencent / 口袋狼人杀
+        // rules, tied candidates PK-speak then re-vote. Only the second
+        // tie forces 流警.
+        const pkSet: Id<'twins'>[] = [];
+        for (const c of next.sheriffCandidates) {
+          if (leaders.includes(asKey(c))) pkSet.push(c);
+        }
+        next.publicLog.push(
+          `Day ${next.day + 1}: 警长投票第一轮平票 (${leaders.length} tied at ${max} votes each) — entering PK round.`,
+        );
+        next.sheriffCandidates = pkSet;
+        next.sheriffVotes = {};
+        next.sheriffPkActive = true;
+        next.sheriffPkSpeechCursor = 0;
+        next.phase = 'sheriff-pk-speech';
+      } else {
+        // Second tie (already in PK) → 流警.
+        next.publicLog.push(
+          `Day ${next.day + 1}: PK round still tied — 流警, no sheriff this game.`,
+        );
+        next.sheriffCandidates = [];
+        next.sheriffVotes = {};
+        next.sheriffElectionDone = true;
+        next.sheriffPkActive = false;
+        next.phase = 'day-speak';
+        next.cursor = 0;
       }
-      next.sheriffCandidates = [];
-      next.sheriffVotes = {};
-      next.sheriffElectionDone = true;
-      next.phase = 'day-speak';
-      next.cursor = 0;
     }
     return next;
   }
 
-  // ---- sheriff-vote system fallback ----
-  if (s.phase === 'sheriff-vote' && t.kind === 'system') {
-    // Defensive — if planNextTurn returned a system because no voters left.
+  // ---- sheriff-pk-speech ----
+  if (s.phase === 'sheriff-pk-speech' && (t.kind === 'sheriff-pk-speech' || t.kind === 'abstain')) {
+    const next = clone(s);
+    next.sheriffPkSpeechCursor += 1;
+    if (next.sheriffPkSpeechCursor >= next.sheriffCandidates.length) {
+      // All PK candidates spoke → reopen voting (just the tied set this time).
+      next.phase = 'sheriff-pk-vote';
+    }
+    return next;
+  }
+
+  // ---- sheriff-vote / pk system fallback ----
+  if (
+    (s.phase === 'sheriff-vote' || s.phase === 'sheriff-pk-vote' || s.phase === 'sheriff-pk-speech') &&
+    t.kind === 'system'
+  ) {
     const next = clone(s);
     next.sheriffCandidates = [];
     next.sheriffVotes = {};
     next.sheriffElectionDone = true;
+    next.sheriffPkActive = false;
     next.phase = 'day-speak';
     next.cursor = 0;
     return next;

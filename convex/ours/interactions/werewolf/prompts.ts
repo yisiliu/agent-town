@@ -22,7 +22,9 @@ const GAME_RULES_CLASS = `========== 狼人杀 9 人局规则与战术 (PRE-GAME
   1. **第一天早上：警长竞选 (Day 1 only)**
      - 每人决定是否上警 (run for sheriff)
      - 上警者依次发言；警下 (non-candidates) 投票选警长
-     - 警长归属一人后，进入下一阶段
+     - 如果第一轮平票 → PK 加赛（仅平票候选人再讲一轮 → 警下再投）；第二轮仍平 → 流警
+     - 警长归属一人后（或流警），进入下一阶段
+     - 任何狼人都可以在警上阶段「自爆」(self-explode)——立即翻牌为狼，吞警徽（本局无警长），白天结束直接进入夜晚。这是狼队的高阶战术。
   2. 白天发言（按座位顺序，每人一句话）
   3. **警长归票 (sheriff pull-vote)**：警长做最后总结，推荐放逐目标——其他人可跟可不跟
   4. 白天投票（每人投一个目标）
@@ -31,9 +33,11 @@ const GAME_RULES_CLASS = `========== 狼人杀 9 人局规则与战术 (PRE-GAME
      - 若警长被放逐：选择传警徽给某人（继承归票权但**没有 1.5 票**）或撕毁警徽（从此无警长）
   6. 进入下一夜
 
-【胜利条件】
-  - 狼人胜：存活的狼人数 ≥ 存活的非狼人数
-  - 好人胜：所有狼人都死亡
+【胜利条件 — 屠边 (modern 9p standard)】
+  - 好人胜：所有狼人都死亡。
+  - 狼人胜（屠神边）：所有「神职」(预言/女巫/猎人) 都死亡（即使平民还活着）。
+  - 狼人胜（屠民边）：所有「平民」都死亡（即使神职还活着）。
+  - 这是「屠边」规则，不是简单的人数对比。狼人需要清掉**整边**才胜利。
 
 【关键战术（请深刻记住）】
 
@@ -77,6 +81,12 @@ const GAME_RULES_CLASS = `========== 狼人杀 9 人局规则与战术 (PRE-GAME
   - 信任公开跳出来的预言家（特别是有 2 个查验时）。但要警惕同时跳的两个「预言家」——其中一个肯定是狼。
   - 你可以**跳预言家骗狼**：高级技巧。狼会以为你是真预言家，分一刀给你，保护真预言家。但风险大——真预言家可能因此不敢跳。
   - 投票时跟随逻辑链——票最多的人，看是谁最早归票，那个人可能是狼。
+
+★ 狼人自爆 (self-explode) 战术：
+  - 仅狼人可用，可在「警上阶段」「白天发言阶段」「白天投票阶段」触发。
+  - 触发后立即翻牌死亡（暴露狼身），当天剩余流程全部跳过，直接进入下一夜。
+  - 使用时机举例：(a) 警上时真预言家已经报了精准查验，留着也会被推 → 自爆吞警徽；(b) 白天好人已经把另一只狼推到边缘 → 自爆打断投票救队友；(c) 白天发言被点到时无法自证 → 主动自爆保留一刀。
+  - 反向风险：少了一只狼会让屠边更难达成；只有当跳出去能为狼队换更多收益时才用。
 
 ★ 警长竞选 (上警/警下) 策略：
   - 狼人**必须**有 1-2 个上警，否则预言家会单方面控警徽，狼队被压制。
@@ -385,13 +395,16 @@ export function buildUserPrompt(args: {
     const youAreWolf = role === 'werewolf';
     const youAreSeer = role === 'seer';
     const roleHint = youAreWolf
-      ? '作为狼人，**强烈建议你上警**——只有上警才能争抢警徽，对抗预言家的影响力。如果其他狼都不上，你必须独自冲。注意：上警就要给出像样的发言，挑选一个假身份（预言家/平民/猎人都行）并给出对应理由。'
+      ? '作为狼人，**强烈建议你上警**——只有上警才能争抢警徽，对抗预言家的影响力。如果其他狼都不上，你必须独自冲。注意：上警就要给出像样的发言，挑选一个假身份（预言家/平民/猎人都行）并给出对应理由。\n\n⚡ 你也可以选择「自爆 (self-explode)」——立刻翻牌、吞警徽、当日结束、直接进入下一晚。这是狼队的牺牲一员换取打断真预言家发言/扰乱节奏的高阶战术。仅在场上局势对狼极不利时使用。'
       : youAreSeer
       ? '作为预言家，**几乎一定要上警**——掌握警徽可以放大你的影响力。如果今晚你查到了狼，可以直接在上警发言中跳预言家，公布查验。即使没查到狼也要上，避免狼人独占警徽。'
       : '作为好人神职/平民，决定权在你。上警可以争夺归票权，但也容易成为狼刀目标。神职玩家（猎人/女巫）一般会上警提升存在感；普通民可以隐于警下观察。';
+    const explodeOption = youAreWolf
+      ? '\n\nIF you choose to 自爆 instead of run/警下: action = {"self_explode": true}.'
+      : '';
     return `Day 1 morning — 警长竞选 (Sheriff election).
 
-你要决定：**上警 (run for sheriff)** 还是 **警下 (stay out)**？
+你要决定：**上警 (run for sheriff)** 还是 **警下 (stay out)**？${youAreWolf ? '（或者狼人特权：自爆）' : ''}
 
 PUBLIC LOG:
 ${log}
@@ -401,9 +414,37 @@ CANDIDATES so far this round: ${candidatesSoFar}
 ${roleHint}
 
 如果你上警，你的发言（"say"）会被所有玩家看到——它就是你的竞选演说。1-2 句话，给出身份/立场/为什么应该选你。
-如果你警下，可以简短说一句解释，或者直接 say "我警下" 即可。
+如果你警下，可以简短说一句解释，或者直接 say "我警下" 即可。${explodeOption}
 
-Respond JSON: {"thinking":"...","say":"<your speech if running, or '警下' if not>","action":{"run": true | false}}`;
+Respond JSON: {"thinking":"...","say":"<speech | '警下' | '我自爆'>","action":{"run": true | false${youAreWolf ? ' | "self_explode": true' : ''}}}`;
+  }
+
+  if (phase === 'sheriff-pk-speech' && kind === 'sheriff-pk-speech') {
+    return `Day 1 morning — 警长 PK 加赛发言.
+
+第一轮投票出现平票，你与其他平票候选人进入 PK 加赛轮。再讲一次——更精炼、更击中要害，把警下的票拉回你这边。
+
+PUBLIC LOG:
+${log}
+
+TIED CANDIDATES (you and others):
+${listCandidates(state.sheriffCandidates, nameMap)}${hints}
+
+Respond JSON: {"thinking":"...","say":"<your PK speech, 1-3 sentences>"}`;
+  }
+
+  if (phase === 'sheriff-pk-vote' && kind === 'sheriff-pk-vote') {
+    return `Day 1 morning — 警长 PK 投票.
+
+PK 加赛投票——你是警下，请从平票候选人中选一位。再平就流警了。
+
+PUBLIC LOG:
+${log}
+
+PK CANDIDATES:
+${listCandidates(state.sheriffCandidates, nameMap)}${hints}
+
+Respond JSON: {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (phase === 'sheriff-vote' && kind === 'sheriff-vote') {
@@ -505,6 +546,11 @@ Respond JSON: {"thinking":"...","action":{...}}`;
   }
 
   if (phase === 'day-speak' && kind === 'speak') {
+    const role = state.roles[actorTwinId as unknown as string];
+    const youAreWolf = role === 'werewolf';
+    const explodeOption = youAreWolf
+      ? '\n\n⚡ 狼人特权：你也可以在此选择「自爆」(self-explode)——翻牌为狼、白天结束、直接进入夜里。仅在场上局势对狼极不利（例如真预言家已锁死你、好人已对你建立票链）时使用。\n如果选择自爆：action = {"self_explode": true}。'
+      : '';
     return `It is day ${state.day + 1}. The village discusses.
 
 ★ 重要 ★：发言是好人阵营推狼的核心。**沉默 = 输**。哪怕你没有强读，也要说点什么——一个观察、一个怀疑、一个反问、甚至一句态度。绝对不要返回空的 say。如果你想不出立场，就说"我目前没有强读，但我注意到 X"。一句话即可。
@@ -515,9 +561,9 @@ PUBLIC LOG:
 ${log}
 
 DISCUSSION SO FAR (today):
-${transcript}${hints}
+${transcript}${hints}${explodeOption}
 
-Respond JSON (REQUIRED non-empty "say"): {"thinking":"...","say":"<your public statement, 1-2 sentences>"}`;
+Respond JSON (REQUIRED non-empty "say"): {"thinking":"...","say":"<your public statement>"${youAreWolf ? ',"action":{"self_explode": true} (optional, wolf only)' : ''}}`;
   }
 
   if (phase === 'day-vote' && kind === 'vote') {
@@ -527,6 +573,10 @@ Respond JSON (REQUIRED non-empty "say"): {"thinking":"...","say":"<your public s
       role === 'werewolf'
         ? 'Wolf-team tactical reminder: vote together (but stagger — first to vote = first to look suspicious), target the most-influential Villagers, join chorus of doubt if the village has settled on one of their own.'
         : 'Non-wolf tactical reminder: look for inconsistencies, deflection, sudden silence, or vote-pattern matches with the previous lynch attempt.';
+    const youAreWolf = role === 'werewolf';
+    const explodeOption = youAreWolf
+      ? '\n\n⚡ 狼人特权：你可以选择「自爆」(self-explode) 而非投票——立刻翻牌、当日结束、直接进入下一夜。此举可以打断好人已经形成的票链，挽救即将被推的队友。\n若选择自爆：action = {"self_explode": true}（不必填 target）。'
+      : '';
     return `It is day ${state.day + 1}. Time to vote. Pick one alive player to lynch.
 
 ★ 重要 ★：必须投票！弃权 = 让狼人获胜。如果你完全没读，就投发言最可疑的那个人。绝不要空票。
@@ -540,9 +590,9 @@ ${transcript}
 ${wolfHint}
 
 CANDIDATES (all alive):
-${listCandidates(candidates, nameMap)}${hints}
+${listCandidates(candidates, nameMap)}${hints}${explodeOption}
 
-Respond JSON (REQUIRED non-empty target): {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
+Respond JSON (REQUIRED non-empty target): {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
   }
 
   if (phase === 'last-words' && kind === 'last-words') {
@@ -625,6 +675,16 @@ export function parseTurnText(
   const say = typeof obj.say === 'string' ? obj.say : '';
   const action = obj.action as Record<string, unknown> | undefined;
   const allowed = ctx.aliveIds.map((id) => id as unknown as string);
+
+  // 自爆 override — wolves can self-explode during sheriff-claim, day-speak,
+  // and day-vote phases. The parser surfaces this as a special parse result
+  // with kind='self-explode' so the action layer can short-circuit the
+  // normal turn-writing logic and write a self-explode turn instead.
+  if (action?.self_explode === true) {
+    if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote') {
+      return { ok: true, data: { thinking, say, self_explode: true } };
+    }
+  }
 
   if (kind === 'speak') {
     if (!say) return { ok: false, error: `${kind} requires "say"` };

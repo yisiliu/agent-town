@@ -10,6 +10,12 @@ export type WerewolfPhase =
   // Wolves vote on a target privately (each wolf picks; majority wins;
   // tie → lowest-seat wolf decides).
   | 'night-werewolf'
+  // PK speech round (only triggered if round-1 sheriff-vote tied). Each
+  // tied candidate gets one more turn to speak.
+  | 'sheriff-pk-speech'
+  // PK vote — same 警下 vote pool from round 1, but now voting only on
+  // the tied-PK candidates.
+  | 'sheriff-pk-vote'
   // Seer peeks one player.
   | 'night-seer'
   // Witch acts: optional save on tonight's kill target, optional poison
@@ -112,10 +118,17 @@ export interface WerewolfState {
   // Day 1 only: claim turn cursor (one parallel pass over alive players).
   sheriffClaimCursor: number;
   // Day 1 only: 警下 votes during election. voterId → candidateId.
+  // Re-used for PK round too (cleared between rounds).
   sheriffVotes: Record<string, string>;
   // Tracks whether the sheriff election has been resolved at least once
   // (the system never re-runs it after Day 1).
   sheriffElectionDone: boolean;
+  // PK round flag (set when round-1 ties and we enter sheriff-pk-speech).
+  // Used by sheriff-vote/applyTurn to decide whether a tied tally should
+  // trigger PK (false → enter PK) or 流警 (true → second tie, no sheriff).
+  sheriffPkActive: boolean;
+  // PK speech cursor (index into sheriffCandidates, which is now the tied set).
+  sheriffPkSpeechCursor: number;
 
   // ---- day state ----
   cursor: number; // index into alive[] for day-speak / day-vote

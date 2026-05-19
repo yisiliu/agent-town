@@ -172,16 +172,20 @@ export default internalAction({
       data?: unknown;
     };
     if (parsed.ok) {
-      // parsed.data already has {thinking, say?, target?, use_save?, poison_target?}.
+      // parsed.data already has {thinking, say?, target?, use_save?, poison_target?, self_explode?}.
       // turn.text is the PUBLIC `say` (visible to other agents per visibility
       // rules); turn.data carries everything including the private `thinking`.
       const d = (parsed.data as Record<string, unknown>) ?? {};
       const sayField = typeof d.say === 'string' ? d.say : '';
+      // 自爆 override — if the wolf returned self_explode:true, the parser
+      // already filtered to wolf-eligible phases. Write a 'self-explode'
+      // turn (visibility=public) regardless of the original plan kind.
+      const isSelfExplode = d.self_explode === true;
       appendArgs = {
-        kind: plan.kind,
-        // For night-only turns (no `say` produced), text is empty —
-        // visibility array already restricts who sees this turn.
-        text: sayField,
+        kind: isSelfExplode ? 'self-explode' : plan.kind,
+        text: isSelfExplode
+          ? (sayField || '我自爆！')
+          : sayField,
         data: d,
       };
     } else {

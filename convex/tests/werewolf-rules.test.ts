@@ -451,7 +451,7 @@ describe('werewolf rules — sheriff election', () => {
     expect(s.sheriffHas1_5x).toBe(false);
   });
 
-  it('dying sheriff passes badge — inheritor gets sheriff but NOT 1.5x', () => {
+  it('dying sheriff passes badge — inheritor gets BOTH sheriff status AND 1.5x', () => {
     let s = nightOneToSheriffClaim();
     const sheriffCand = s.alive[0]!;
     while (s.phase === 'sheriff-claim') {
@@ -476,28 +476,279 @@ describe('werewolf rules — sheriff election', () => {
       data: { badge_decision: `pass:${heir}` },
     });
     expect(s.sheriff).toBe(heir);
-    expect(s.sheriffHas1_5x).toBe(false);
+    expect(s.sheriffHas1_5x).toBe(true);
   });
 });
 
-describe('werewolf rules — checkWin', () => {
-  it('werewolves win when count >= non-werewolves alive', () => {
-    const s0 = initialState(nine, 42);
-    const wolves = byRole(s0, 'werewolf');
-    const villager = byRole(s0, 'villager')[0]!;
-    const s: WerewolfState = { ...s0, alive: [...wolves, villager] };
-    // 3 wolves vs 1 non-wolf → wolves win
-    expect(checkWin(s)).toEqual({ ended: true, winner: 'werewolves' });
+describe('werewolf rules — sheriff PK round', () => {
+  function nightOneToSheriffClaim(): WerewolfState {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    return s;
+  }
+
+  it('first-tie triggers PK speech + revote, not 流警', () => {
+    let s = nightOneToSheriffClaim();
+    // Two candidates run.
+    const candA = s.alive[0]!;
+    const candB = s.alive[1]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      const run = actor === candA || actor === candB;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
+    }
+    expect(s.phase).toBe('sheriff-vote');
+
+    // Manufacture a tie: 警下 (6 voters) split 3-3.
+    const voters = s.alive.filter((id) => !s.sheriffCandidates.includes(id));
+    expect(voters.length).toBe(6);
+    for (let i = 0; i < voters.length; i++) {
+      const v = voters[i]!;
+      const target = i < 3 ? candA : candB;
+      s = applyTurn(s, { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: v, data: { target } });
+    }
+    // Tie → PK speech phase.
+    expect(s.phase).toBe('sheriff-pk-speech');
+    expect(s.sheriffPkActive).toBe(true);
+    expect(s.sheriffCandidates).toEqual([candA, candB]);
+    expect(s.sheriffVotes).toEqual({});
+    expect(s.sheriff).toBeUndefined();
   });
 
-  it('villagers win when no werewolves alive', () => {
+  it('PK speech → PK vote → elect winner', () => {
+    let s = nightOneToSheriffClaim();
+    const candA = s.alive[0]!;
+    const candB = s.alive[1]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      const run = actor === candA || actor === candB;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
+    }
+    // Tied 3-3 in round 1
+    const voters = s.alive.filter((id) => !s.sheriffCandidates.includes(id));
+    for (let i = 0; i < voters.length; i++) {
+      const target = i < 3 ? candA : candB;
+      s = applyTurn(s, { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: voters[i]!, data: { target } });
+    }
+    expect(s.phase).toBe('sheriff-pk-speech');
+    // PK speech: each tied candidate speaks
+    while (s.phase === 'sheriff-pk-speech') {
+      const speaker = s.sheriffCandidates[s.sheriffPkSpeechCursor]!;
+      s = applyTurn(s, {
+        phase: 'sheriff-pk-speech',
+        kind: 'sheriff-pk-speech',
+        actorTwinId: speaker,
+        text: 'PK speech',
+      });
+    }
+    expect(s.phase).toBe('sheriff-pk-vote');
+    // PK vote: voters break the tie 4-2 for candA
+    const pkVoters = s.alive.filter((id) => !s.sheriffCandidates.includes(id));
+    for (let i = 0; i < pkVoters.length; i++) {
+      const target = i < 4 ? candA : candB;
+      s = applyTurn(s, { phase: 'sheriff-pk-vote', kind: 'sheriff-pk-vote', actorTwinId: pkVoters[i]!, data: { target } });
+    }
+    expect(s.phase).toBe('day-speak');
+    expect(s.sheriff).toBe(candA);
+    expect(s.sheriffHas1_5x).toBe(true);
+    expect(s.sheriffPkActive).toBe(false);
+  });
+
+  it('second-tie (PK still tied) → 流警', () => {
+    let s = nightOneToSheriffClaim();
+    const candA = s.alive[0]!;
+    const candB = s.alive[1]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      const run = actor === candA || actor === candB;
+      s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
+    }
+    // Round 1: tied 3-3
+    const v1 = s.alive.filter((id) => !s.sheriffCandidates.includes(id));
+    for (let i = 0; i < v1.length; i++) {
+      const target = i < 3 ? candA : candB;
+      s = applyTurn(s, { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: v1[i]!, data: { target } });
+    }
+    expect(s.phase).toBe('sheriff-pk-speech');
+    while (s.phase === 'sheriff-pk-speech') {
+      const speaker = s.sheriffCandidates[s.sheriffPkSpeechCursor]!;
+      s = applyTurn(s, { phase: 'sheriff-pk-speech', kind: 'sheriff-pk-speech', actorTwinId: speaker, text: 'pk' });
+    }
+    // PK vote: tied 3-3 again
+    const v2 = s.alive.filter((id) => !s.sheriffCandidates.includes(id));
+    for (let i = 0; i < v2.length; i++) {
+      const target = i < 3 ? candA : candB;
+      s = applyTurn(s, { phase: 'sheriff-pk-vote', kind: 'sheriff-pk-vote', actorTwinId: v2[i]!, data: { target } });
+    }
+    expect(s.phase).toBe('day-speak');
+    expect(s.sheriff).toBeUndefined();
+    expect(s.sheriffElectionDone).toBe(true);
+  });
+});
+
+describe('werewolf rules — 自爆 (wolf self-explode)', () => {
+  it('wolf self-explode during sheriff-claim → 吞警徽 + skip to next night', () => {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.phase).toBe('sheriff-claim');
+
+    // One wolf self-explodes immediately.
+    const exploder = wolves[0]!;
+    s = applyTurn(s, { phase: 'sheriff-claim', kind: 'self-explode', actorTwinId: exploder });
+    expect(s.alive).not.toContain(exploder);
+    expect(s.sheriff).toBeUndefined();
+    expect(s.sheriffElectionDone).toBe(true);
+    expect(s.phase).toBe('night-werewolf');
+    expect(s.day).toBe(1); // advanced past day 0
+  });
+
+  it('wolf self-explode during day-vote → skip to next night, 屠边 may trigger', () => {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    s = skipSheriffElection(s);
+    // Drive day-speak
+    while (s.phase === 'day-speak') {
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'meh' });
+    }
+    expect(s.phase).toBe('day-vote');
+    // Self-explode mid-vote
+    s = applyTurn(s, { phase: 'day-vote', kind: 'self-explode', actorTwinId: wolves[1]! });
+    expect(s.alive).not.toContain(wolves[1]);
+    expect(s.phase).toBe('night-werewolf');
+  });
+});
+
+describe('werewolf rules — witch self-save N1 only', () => {
+  it('witch CAN self-save on Night 1', () => {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    // Wolves kill the witch
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: witch } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    expect(s.witchSavePotion).toBe(false);
+    expect(s.witchSaveUsedTonight).toBe(true);
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).toContain(witch); // survived
+  });
+
+  it('witch CANNOT self-save on Night 2', () => {
+    let s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    // Night 1: kill a villager (not witch), witch skips
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    s = skipSheriffElection(s);
+    // Day-1 speak + vote (everyone votes wolf0 to keep night-2 alive simple)
+    while (s.phase === 'day-speak') {
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+    }
+    while (s.phase === 'day-vote') {
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[1]! } });
+    }
+    if (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
+    // Now Night 2 — wolves kill the witch.
+    expect(s.day).toBe(1);
+    expect(s.phase).toBe('night-werewolf');
+    const aliveWolves = byRole(s, 'werewolf').filter((w) => s.alive.includes(w));
+    for (const w of aliveWolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: witch } });
+    }
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[1]! } });
+    // Witch tries to self-save on Night 2 — should be blocked.
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    expect(s.witchSavePotion).toBe(true); // potion NOT consumed
+    expect(s.witchSaveUsedTonight).toBe(false); // save NOT applied
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).not.toContain(witch); // dead on N2
+  });
+});
+
+describe('werewolf rules — checkWin (屠边)', () => {
+  it('villagers win when ALL werewolves dead', () => {
     const s0 = initialState(nine, 42);
     const wolves = byRole(s0, 'werewolf');
     const s: WerewolfState = { ...s0, alive: s0.alive.filter((id) => !wolves.includes(id)) };
     expect(checkWin(s)).toEqual({ ended: true, winner: 'villagers' });
   });
 
-  it('not ended while wolves outnumbered', () => {
+  it('wolves win when ALL gods dead (屠神边) — even with civilians still alive', () => {
+    const s0 = initialState(nine, 42);
+    const wolves = byRole(s0, 'werewolf');
+    const villagers = byRole(s0, 'villager');
+    // Keep wolves + civilians; kill all gods (seer/witch/hunter)
+    const s: WerewolfState = {
+      ...s0,
+      alive: [...wolves, ...villagers], // 3 wolves + 3 villagers (no gods)
+    };
+    expect(checkWin(s)).toEqual({ ended: true, winner: 'werewolves' });
+  });
+
+  it('wolves win when ALL civilians dead (屠民边) — even with gods still alive', () => {
+    const s0 = initialState(nine, 42);
+    const wolves = byRole(s0, 'werewolf');
+    const seer = byRole(s0, 'seer')[0]!;
+    const witch = byRole(s0, 'witch')[0]!;
+    const hunter = byRole(s0, 'hunter')[0]!;
+    // Keep wolves + gods; kill all civilians
+    const s: WerewolfState = {
+      ...s0,
+      alive: [...wolves, seer, witch, hunter],
+    };
+    expect(checkWin(s)).toEqual({ ended: true, winner: 'werewolves' });
+  });
+
+  it('NOT ended when both gods and civilians have at least 1 alive (count parity does NOT win)', () => {
+    const s0 = initialState(nine, 42);
+    const wolves = byRole(s0, 'werewolf');
+    const seer = byRole(s0, 'seer')[0]!;
+    const villager = byRole(s0, 'villager')[0]!;
+    // 3 wolves + 1 seer + 1 villager — wolves outnumber, but both sides still have someone
+    const s: WerewolfState = { ...s0, alive: [...wolves, seer, villager] };
+    expect(checkWin(s)).toEqual({ ended: false });
+  });
+
+  it('not ended at game start', () => {
     expect(checkWin(initialState(nine, 42))).toEqual({ ended: false });
   });
 });
