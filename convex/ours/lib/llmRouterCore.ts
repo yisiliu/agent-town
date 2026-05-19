@@ -18,6 +18,7 @@ export type CallType =
   | 'pii_scan'
   | 'injection_scan'
   | 'private_chat'
+  | 'interaction_turn'
   | 'idle_thought'
   | 'move_decision';
 
@@ -56,6 +57,11 @@ export const OUTPUT_TOKEN_CAPS: Record<CallType, number> = {
   // path — that's conversation_reply with its 200-token civic cap).
   // 1200 leaves reasoning room + room for a real-length reply.
   private_chat: 1200,
+  // Multi-party game turn (werewolf, future plugins). JSON envelope with
+  // reasoning + structured action — plus V4 Pro's chain-of-thought before
+  // emitting content. Same sizing rationale as pii_scan/injection_scan
+  // (cap is a tail bound, not a target).
+  interaction_turn: 1200,
   idle_thought: 80,
   move_decision: 40,
 };

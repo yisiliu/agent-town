@@ -22,6 +22,7 @@ export default action({
       v.literal('pii_scan'),
       v.literal('injection_scan'),
       v.literal('private_chat'),
+      v.literal('interaction_turn'),
       v.literal('idle_thought'),
       v.literal('move_decision'),
     ),
