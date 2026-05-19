@@ -85,6 +85,10 @@ export interface WerewolfState {
   lastWordsQueue: Id<'twins'>[];
   // Hunter who must shoot (set when a hunter dies non-poisoned).
   pendingHunterShot?: Id<'twins'>;
+  // What phase to return to after the hunter shoots. Tracks where the
+  // hunter's death originated so we don't accidentally skip a full
+  // day-cycle when the hunter dies at night.
+  phaseAfterHunterShot?: 'day-speak' | 'night-werewolf';
 
   // ---- day state ----
   cursor: number; // index into alive[] for day-speak / day-vote

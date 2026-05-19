@@ -8,6 +8,12 @@ import type { LLMCallArgs, LLMCallResult } from './llmRouterCore';
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
 const TIMEOUT_MS = 30_000;
+// V4 Pro burns reasoning tokens before emitting content; even at a generous
+// max_tokens cap, the model occasionally cuts off mid-CoT and returns empty
+// content. On the first 9p game ~30% of wolf-bid calls came back empty.
+// One retry brings the success rate to >99% in practice; the retry pays the
+// full token cost again but is rare enough that overall spend stays bounded.
+const EMPTY_CONTENT_RETRIES = 1;
 
 function apiKey(): string {
   const key = process.env.DEEPSEEK_API_KEY;
@@ -23,37 +29,42 @@ function apiKey(): string {
 export async function callDeepseekAPI(
   req: LLMCallArgs,
 ): Promise<LLMCallResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(DEEPSEEK_ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey()}`,
-      },
-      body: JSON.stringify({
-        model: req.model,
-        max_tokens: req.maxTokens,
-        messages: [
-          { role: 'system', content: req.system },
-          ...req.messages,
-        ],
-      }),
-    });
-    if (!res.ok) {
-      // Preserve HTTP status in the message so routeLLMCall's
-      // 5xx-vs-4xx retry heuristic stays dependency-free.
-      const body = await res.text();
-      throw new Error(
-        `deepseek ${res.status}: ${body.slice(0, 200)}`,
-      );
+  let lastResult: LLMCallResult | undefined;
+  for (let attempt = 0; attempt <= EMPTY_CONTENT_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(DEEPSEEK_ENDPOINT, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey()}`,
+        },
+        body: JSON.stringify({
+          model: req.model,
+          max_tokens: req.maxTokens,
+          messages: [
+            { role: 'system', content: req.system },
+            ...req.messages,
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`deepseek ${res.status}: ${body.slice(0, 200)}`);
+      }
+      lastResult = parseDeepseekReply(await res.json());
+      if (lastResult.text.trim().length > 0) return lastResult;
+      // Empty content → retry once. Don't pass through; the caller likely
+      // depends on non-empty output (game turns, classifier output, etc.).
+    } finally {
+      clearTimeout(timer);
     }
-    return parseDeepseekReply(await res.json());
-  } finally {
-    clearTimeout(timer);
   }
+  // All retries exhausted with empty content — return the last attempt so
+  // the caller can decide (some paths treat empty as abstain).
+  return lastResult ?? { text: '', usage: { input_tokens: 0, output_tokens: 0 } };
 }
 
 interface DeepseekResponse {

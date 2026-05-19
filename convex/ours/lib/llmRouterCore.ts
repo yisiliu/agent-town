@@ -59,13 +59,14 @@ export const OUTPUT_TOKEN_CAPS: Record<CallType, number> = {
   private_chat: 1200,
   // Multi-party game turn (werewolf, future plugins). JSON envelope with
   // thinking + say + structured action — plus V4 Pro's chain-of-thought
-  // before emitting content. Live test on 2026-05-19 showed 1200 cap
-  // truncating vote-phase output entirely (empty content): vote prompts
-  // include the full day's transcript so input is large, and V4 Pro burns
-  // multi-hundred-token reasoning chains deciding who to lynch. Bumped to
-  // 3000 — a tail bound. Per-turn cost worst case ~$0.0105 vs ~$0.0042 at
-  // 1200; for a 9p ~80-turn game that's ~$0.85 vs ~$0.34. Within budget.
-  interaction_turn: 3000,
+  // before emitting content. First 9p live game (2026-05-19 round 2) at
+  // 3000 still showed 30-40% empty-content rate on the first wolf bid,
+  // where the model thinks-from-scratch with no prior bid context. Bumped
+  // to 4500. deepseekClient also retries once on empty content as a
+  // belt-and-braces measure. Worst-case ~$0.016/turn; 9p ~80-turn game
+  // ~$1.30 ceiling. (Auto prompt cache hits drop the real cost to ~30%
+  // of that.)
+  interaction_turn: 4500,
   idle_thought: 80,
   move_decision: 40,
 };

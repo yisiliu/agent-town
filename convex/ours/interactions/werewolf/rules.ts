@@ -48,6 +48,7 @@ function clone(s: WerewolfState): WerewolfState {
     poisonedThisNight: s.poisonedThisNight.slice(),
     lastWordsQueue: s.lastWordsQueue.slice(),
     pendingHunterShot: s.pendingHunterShot,
+    phaseAfterHunterShot: s.phaseAfterHunterShot,
     cursor: s.cursor,
     pendingVotes: { ...s.pendingVotes },
     publicLog: s.publicLog.slice(),
@@ -134,6 +135,7 @@ export function initialState(
     poisonedThisNight: [],
     lastWordsQueue: [],
     pendingHunterShot: undefined,
+    phaseAfterHunterShot: undefined,
     cursor: 0,
     pendingVotes: {},
     publicLog: [`Day 0: Game begins with ${participants.length} players.`],
@@ -213,7 +215,11 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
       phase: 'night-werewolf',
       kind: 'wolf-kill-bid',
       actorTwinId: next,
-      visibility: wolves, // all alive wolves see each other's bids
+      // Simultaneous-bid semantics: each wolf's bid is visible ONLY to that
+      // wolf. Other wolves don't see prior bids when forming their own
+      // choice, so the team decision is "together without prior knowledge"
+      // (the LLM picks independently; the framework collects + tallies).
+      visibility: [next],
     };
   }
 
@@ -341,6 +347,9 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
       const poisoned = next.poisonedThisNight.includes(d);
       if (!poisoned && !next.pendingHunterShot) {
         next.pendingHunterShot = d;
+        // Night death → after the shot, return to day-speak (the village
+        // still needs to discuss and lynch).
+        next.phaseAfterHunterShot = 'day-speak';
       }
     }
   }
@@ -389,6 +398,8 @@ function applyDayResolve(s: WerewolfState): WerewolfState {
     // Hunter shoots on lynch too (not blocked by poison — they weren't poisoned in this case).
     if (next.roles[asKey(lynched)] === 'hunter') {
       next.pendingHunterShot = lynched;
+      // Day-lynch → after the shot, advance to next night.
+      next.phaseAfterHunterShot = 'night-werewolf';
     }
   } else {
     next.publicLog.push(
@@ -477,13 +488,15 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         next.publicLog.push(
           `Day ${next.day + 1}: The dying hunter (${next.pendingHunterShot}) shot ${target}.`,
         );
-        // If shot target is also a hunter (impossible in v1) or in last-words
-        // queue, we keep it simple — last-words queue stays as-is.
       }
     }
+    // Honor where the hunter shot was triggered from — night death returns
+    // to day-speak; day lynch advances to next night. Without this, a night
+    // hunter death would skip the entire day cycle.
+    const returnTo = next.phaseAfterHunterShot ?? 'day-speak';
     next.pendingHunterShot = undefined;
-    // After shooting, re-evaluate transitions.
-    return transitionAfterResolve(next, false);
+    next.phaseAfterHunterShot = undefined;
+    return transitionAfterResolve(next, returnTo === 'day-speak');
   }
 
   // ---- last-words ----

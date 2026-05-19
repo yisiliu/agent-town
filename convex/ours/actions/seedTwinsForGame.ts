@@ -54,6 +54,54 @@ const WUXIA_ARCHETYPES: Array<{ name: string; seed: string }> = [
   },
 ];
 
+// Three Kingdoms theme — distinct historical-political voices. These are
+// fictional descendants/contemporaries inspired by famous figures rather
+// than the historical figures themselves, to keep the LLM from leaning on
+// canonical biographical details.
+const THREE_KINGDOMS_ARCHETYPES: Array<{ name: string; seed: string }> = [
+  {
+    name: '曹氏谋士',
+    seed: '一位曹氏阵营的谋士，深得曹丞相器重。擅长权术，惯于审时度势，言语含蓄但句句机锋。多疑，但也最善于试探别人。',
+  },
+  {
+    name: '蜀汉军师',
+    seed: '一位蜀汉的青年军师，自命继承诸葛之遗志。说话条理分明，喜欢摆事实讲道理，自信己策必胜。容易因被怀疑而失态。',
+  },
+  {
+    name: '东吴水军都督',
+    seed: '一位东吴的水军都督，年轻有为，俊朗自负，重江东风度。说话锐利，喜欢以大局压人。看不起阴谋诡计。',
+  },
+  {
+    name: '虎将',
+    seed: '一位威震四方的虎将，沙场出身，性如烈火，说话直白少修饰。最重义气，最恨小人。判断人凭第一感觉而非分析。',
+  },
+  {
+    name: '太医令',
+    seed: '一位三国时代的宫廷太医，遍游三国为各阵营贵族治病，因此立场暧昧。说话斯文，喜欢用医理打比方。冷眼旁观惯了。',
+  },
+  {
+    name: '说客',
+    seed: '一位无门无派的说客，靠口才在三国间奔走。说话夹枪带棒，善察言观色，会借别人的力达成自己目的。从不让人摸清自己阵营。',
+  },
+  {
+    name: '隐士',
+    seed: '一位拒绝入朝、避居乡野的隐士。话少而精，每句话都像是看穿了局势。被强问立场时会以哲理打太极。',
+  },
+  {
+    name: '女眷',
+    seed: '一位出身大族的女眷，识字晓礼，常听父兄议政。说话委婉但绝不糊涂。最擅长从男人的言语中辨出虚实。',
+  },
+  {
+    name: '间谍',
+    seed: '一位真正身份不明的「商旅」，往来三国之间。表面上人畜无害，说话谨慎不轻易站队。但每一次发言都像在精确测试某个假设。',
+  },
+];
+
+const THEMES: Record<string, Array<{ name: string; seed: string }>> = {
+  wuxia: WUXIA_ARCHETYPES,
+  three_kingdoms: THREE_KINGDOMS_ARCHETYPES,
+};
+
 const PERSONA_SYSTEM = `你正在为一个武侠主题的「狼人杀」游戏生成一个角色卡。角色卡是一段中文 Markdown，让另一个 AI 能完全代入这个角色发言、辩论、说谎和投票。
 
 输出格式（严格按此结构，不要其它）：
@@ -111,18 +159,26 @@ export default action({
     if (numPlayers < 4 || numPlayers > 12) {
       throw new Error('seedTwinsForGame: numPlayers must be 4..12');
     }
-    if (theme && theme !== 'wuxia') {
-      throw new Error(`seedTwinsForGame: only "wuxia" theme is implemented (got "${theme}")`);
+    const themeKey = theme ?? 'wuxia';
+    const themeArchetypes = THEMES[themeKey];
+    if (!themeArchetypes) {
+      throw new Error(
+        `seedTwinsForGame: unknown theme "${themeKey}". Available: ${Object.keys(THEMES).join(', ')}`,
+      );
     }
+    const archetypes = themeArchetypes.slice(0, numPlayers);
 
-    const archetypes = WUXIA_ARCHETYPES.slice(0, numPlayers);
+    const nameStyleHint =
+      themeKey === 'three_kingdoms'
+        ? '姓名要符合三国时代风格（汉语双字名，姓氏可参考三国大族如曹/刘/孙/周/陈/张/王/李/赵/黄/吕等），不要直接用「曹操」「诸葛亮」这些历史人物原名。'
+        : '姓名要符合武侠风格（双字或三字汉语姓名），不要用「侠客」「神医」这类原型词当姓名本身。';
 
     // Parallel calls — each persona is independent. V4 Flash is fast enough
     // and the JSON-free Markdown format means we don't pay for V4 Pro
     // reasoning here.
     const personas = await Promise.all(
       archetypes.map(async (a, idx) => {
-        const userPrompt = `请生成第 ${idx + 1} 个角色，原型是「${a.name}」。具体设定：${a.seed}\n\n姓名要符合武侠风格（双字或三字汉语姓名），不要用「侠客」「神医」这类原型词当姓名本身。`;
+        const userPrompt = `请生成第 ${idx + 1} 个角色，原型是「${a.name}」。具体设定：${a.seed}\n\n${nameStyleHint}`;
         const llm = await callDeepseekAPI({
           model: LOCAL_MODEL,
           maxTokens: 2000,

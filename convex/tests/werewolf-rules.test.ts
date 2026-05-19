@@ -74,17 +74,15 @@ describe('werewolf rules — 9p canonical config (3W+S+W+H+3V)', () => {
 });
 
 describe('werewolf rules — 9p night-werewolf bidding', () => {
-  it('plan returns the first unvoted wolf with wolf-team visibility', () => {
+  it('plan returns the first unvoted wolf with self-only visibility (simultaneous bidding)', () => {
     const s = initialState(nine, 42);
     const wolves = byRole(s, 'werewolf');
     const plan = planNextTurn(s);
     expect(plan).not.toBeNull();
     expect(plan!.kind).toBe('wolf-kill-bid');
     expect(wolves.map((w) => w as unknown as string)).toContain(plan!.actorTwinId as unknown as string);
-    // visibility is seat-ordered (alive[]) while wolves[] is role-iteration-ordered;
-    // compare as sets.
-    const vis = plan!.visibility as Id<'twins'>[];
-    expect(new Set(vis)).toEqual(new Set(wolves));
+    // Simultaneous-bid semantics: each wolf's bid is visible only to themselves.
+    expect(plan!.visibility).toEqual([plan!.actorTwinId]);
   });
 
   it('collapses 3 wolf votes (majority wins), advances to night-seer', () => {
