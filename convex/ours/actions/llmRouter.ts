@@ -21,6 +21,7 @@ export default action({
       v.literal('reflection'),
       v.literal('pii_scan'),
       v.literal('injection_scan'),
+      v.literal('private_chat'),
       v.literal('idle_thought'),
       v.literal('move_decision'),
     ),

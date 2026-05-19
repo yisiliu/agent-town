@@ -9,14 +9,17 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as ours_actions_chatWithTwin from "../ours/actions/chatWithTwin.js";
 import type * as ours_actions_llmRouter from "../ours/actions/llmRouter.js";
 import type * as ours_actions_piiScan from "../ours/actions/piiScan.js";
 import type * as ours_actions_promptInjectionScan from "../ours/actions/promptInjectionScan.js";
 import type * as ours_actions_runTwinScans from "../ours/actions/runTwinScans.js";
 import type * as ours_actions_uploadTwin from "../ours/actions/uploadTwin.js";
+import type * as ours_actions_verifyChatAccess from "../ours/actions/verifyChatAccess.js";
 import type * as ours_crons_sessionWindow from "../ours/crons/sessionWindow.js";
 import type * as ours_lib_authCodeStore from "../ours/lib/authCodeStore.js";
 import type * as ours_lib_cardValidator from "../ours/lib/cardValidator.js";
+import type * as ours_lib_chatAuth from "../ours/lib/chatAuth.js";
 import type * as ours_lib_codes from "../ours/lib/codes.js";
 import type * as ours_lib_deepseekClient from "../ours/lib/deepseekClient.js";
 import type * as ours_lib_finalizeScanCore from "../ours/lib/finalizeScanCore.js";
@@ -53,6 +56,7 @@ import type * as ours_queries_getCachedLlmCall from "../ours/queries/getCachedLl
 import type * as ours_queries_getCardForScan from "../ours/queries/getCardForScan.js";
 import type * as ours_queries_getSession from "../ours/queries/getSession.js";
 import type * as ours_queries_instructorSession from "../ours/queries/instructorSession.js";
+import type * as ours_queries_twinsForChatByPseudonym from "../ours/queries/twinsForChatByPseudonym.js";
 import type * as ours_queries_uploadResultByToken from "../ours/queries/uploadResultByToken.js";
 import type * as ours_queries_verifyCode from "../ours/queries/verifyCode.js";
 import type * as ours_queries_worldStatus from "../ours/queries/worldStatus.js";
@@ -89,14 +93,17 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  "ours/actions/chatWithTwin": typeof ours_actions_chatWithTwin;
   "ours/actions/llmRouter": typeof ours_actions_llmRouter;
   "ours/actions/piiScan": typeof ours_actions_piiScan;
   "ours/actions/promptInjectionScan": typeof ours_actions_promptInjectionScan;
   "ours/actions/runTwinScans": typeof ours_actions_runTwinScans;
   "ours/actions/uploadTwin": typeof ours_actions_uploadTwin;
+  "ours/actions/verifyChatAccess": typeof ours_actions_verifyChatAccess;
   "ours/crons/sessionWindow": typeof ours_crons_sessionWindow;
   "ours/lib/authCodeStore": typeof ours_lib_authCodeStore;
   "ours/lib/cardValidator": typeof ours_lib_cardValidator;
+  "ours/lib/chatAuth": typeof ours_lib_chatAuth;
   "ours/lib/codes": typeof ours_lib_codes;
   "ours/lib/deepseekClient": typeof ours_lib_deepseekClient;
   "ours/lib/finalizeScanCore": typeof ours_lib_finalizeScanCore;
@@ -133,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   "ours/queries/getCardForScan": typeof ours_queries_getCardForScan;
   "ours/queries/getSession": typeof ours_queries_getSession;
   "ours/queries/instructorSession": typeof ours_queries_instructorSession;
+  "ours/queries/twinsForChatByPseudonym": typeof ours_queries_twinsForChatByPseudonym;
   "ours/queries/uploadResultByToken": typeof ours_queries_uploadResultByToken;
   "ours/queries/verifyCode": typeof ours_queries_verifyCode;
   "ours/queries/worldStatus": typeof ours_queries_worldStatus;

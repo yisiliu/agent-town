@@ -17,6 +17,7 @@ export type CallType =
   | 'reflection'
   | 'pii_scan'
   | 'injection_scan'
+  | 'private_chat'
   | 'idle_thought'
   | 'move_decision';
 
@@ -51,6 +52,10 @@ export const OUTPUT_TOKEN_CAPS: Record<CallType, number> = {
   // the cap, only the (rare) verbose response hits it.
   pii_scan: 1024,
   injection_scan: 1024,
+  // Private 1-on-1 chat with own twin (not the in-town conversation
+  // path — that's conversation_reply with its 200-token civic cap).
+  // 1200 leaves reasoning room + room for a real-length reply.
+  private_chat: 1200,
   idle_thought: 80,
   move_decision: 40,
 };
