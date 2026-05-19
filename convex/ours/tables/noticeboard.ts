@@ -11,7 +11,7 @@ export const noticeboard = defineTable({
     v.literal('game_opt_in'),
     v.literal('world_event'),
   ),
-  gameId: v.optional(v.id('games')),
+  interactionId: v.optional(v.id('interactions')),
   optInDeadline: v.optional(v.number()),
 })
   .index('postedAt', ['postedAt'])

@@ -2,8 +2,8 @@ import { twins } from './twins';
 import { cards } from './cards';
 import { consents } from './consents';
 import { objects } from './objects';
-import { games } from './games';
-import { gameTurns } from './gameTurns';
+import { interactions } from './interactions';
+import { interactionTurns } from './interactionTurns';
 import { noticeboard } from './noticeboard';
 import { digests } from './digests';
 import { retractions } from './retractions';
@@ -27,8 +27,8 @@ export const ourTables = {
   cards,
   consents,
   objects,
-  games,
-  gameTurns,
+  interactions,
+  interactionTurns,
   noticeboard,
   digests,
   retractions,
