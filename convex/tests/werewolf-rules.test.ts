@@ -13,6 +13,8 @@ import {
   parseTurnText,
 } from '../ours/interactions/werewolf/prompts';
 import type { WerewolfState } from '../ours/interactions/werewolf/state';
+import { getPlugin } from '../ours/interactions/gameRegistry';
+import '../ours/interactions/werewolf'; // trigger self-registration
 
 const P = (n: number) => `twin_${n}` as unknown as Id<'twins'>;
 const five = [P(0), P(1), P(2), P(3), P(4)];
@@ -323,6 +325,20 @@ describe('werewolf prompts — parseTurnText', () => {
   it('rejects missing action.target on vote', () => {
     const r = parseTurnText('{"reasoning":"hmm"}', 'vote', { aliveIds: [P(2)] });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('plugin registry', () => {
+  it('werewolf plugin self-registers on import', () => {
+    const p = getPlugin('werewolf');
+    expect(p).toBeDefined();
+    expect(p!.type).toBe('werewolf');
+    expect(p!.minPlayers).toBe(4);
+    expect(p!.maxPlayers).toBe(12);
+  });
+
+  it('unknown plugin lookups return undefined', () => {
+    expect(getPlugin('does-not-exist')).toBeUndefined();
   });
 });
 
