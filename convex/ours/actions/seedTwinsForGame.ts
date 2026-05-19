@@ -106,7 +106,7 @@ const THREE_KINGDOMS_ARCHETYPES: Array<{ name: string; seed: string }> = [
 const NINTENDO_ARCHETYPES: Array<{ name: string; seed: string }> = [
   {
     name: '红帽水管工',
-    seed: '一位永远戴着红色帽子的水管工，性格直率乐观，见义勇为，永远相信「困难只是下一关」。说话简单热情，常用「Mama mia」「Let's-a-go」式口头禅。在桌面上喜欢主动起冲突而非藏身。',
+    seed: '一位永远戴着红色帽子的水管工，性格直率乐观，见义勇为，永远相信「困难只是下一关」。说话简单热情，常用「Mama mia」「Letsa-go」式口头禅。在桌面上喜欢主动起冲突而非藏身。',
   },
   {
     name: '王国君主',
