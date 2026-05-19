@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
-# Spec §5.1 chokepoint enforcement. The Anthropic SDK may only be imported
-# from convex/ours/lib/anthropicClient.ts. Anywhere else, including ai-town-
-# fork's additive surface and shell/, the import must fail CI.
+# Spec §5.1 chokepoint enforcement. Raw access to DeepSeek's API may
+# only originate from convex/ours/lib/deepseekClient.ts. Anywhere else,
+# including ai-town-fork's additive surface and shell/, a hit on the
+# DeepSeek API URL must fail CI.
 #
-# Tests under convex/tests/ and shell/tests/ are exempt — mocking the SDK
-# via vi.mock('@anthropic-ai/sdk') counts as a string match but doesn't
-# actually issue any calls.
+# Tests under convex/tests/ and shell/tests/ are exempt — mocking deps
+# at the routeLLMCall boundary is legitimate.
 set -euo pipefail
 
 ALLOWED_FILES=(
-  "convex/ours/lib/anthropicClient.ts"
+  "convex/ours/lib/deepseekClient.ts"
 )
 
-# Match real import / require sites for the Anthropic SDK — covers ESM and
-# CJS. Deliberately narrow: bare uses of the word "anthropic" (e.g. in
-# comments, in identifier names like anthropicClient, or in docstrings)
-# don't trip the gate.
-PATTERN='@anthropic-ai/sdk'
+# Match real API endpoint hits — covers fetch(...) and any URL string
+# literal. Deliberately narrow: bare uses of the word "deepseek" in
+# comments / identifiers don't trip the gate, only the actual host.
+PATTERN='api\.deepseek\.com'
 
 FAILED=0
 while IFS=: read -r file _rest; do
@@ -24,7 +23,7 @@ while IFS=: read -r file _rest; do
   case " ${ALLOWED_FILES[*]} " in
     *" $rel "*) continue ;;
   esac
-  # Skip test files — mocking the SDK there is legitimate.
+  # Skip test files — mocking the dep there is legitimate.
   case "$rel" in
     *.test.ts|*.test.tsx) continue ;;
     convex/tests/*|shell/tests/*) continue ;;
@@ -34,7 +33,7 @@ while IFS=: read -r file _rest; do
     ai-town-fork/*) continue ;;
   esac
   echo "BARE_LLM_CALL: $rel"
-  echo "  imports the Anthropic SDK directly. Route through"
+  echo "  hits the DeepSeek API directly. Route through"
   echo "  convex/ours/actions/llmRouter (spec §5.1)."
   FAILED=1
 done < <(grep -rEln "$PATTERN" \

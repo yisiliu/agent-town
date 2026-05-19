@@ -25,11 +25,11 @@ function makeDeps(overrides: Partial<RouteDeps> = {}): RouteDeps {
   return {
     lookupCache: vi.fn().mockResolvedValue(null),
     writeCache: vi.fn().mockResolvedValue(undefined),
-    callAnthropic: vi.fn().mockResolvedValue({
+    callFrontier: vi.fn().mockResolvedValue({
       text: 'frontier text',
       usage: { input_tokens: 50, output_tokens: 8 },
     }),
-    callRunpod: vi.fn().mockResolvedValue({
+    callLocal: vi.fn().mockResolvedValue({
       text: 'a small green thought',
       usage: { input_tokens: 20, output_tokens: 4 },
     }),
@@ -55,13 +55,13 @@ describe('tierFor — spec §5.1 callType → tier mapping', () => {
 });
 
 describe('routeLLMCall — local tier dispatch', () => {
-  it('routes idle_thought to RunPod, not Anthropic', async () => {
+  it('routes idle_thought to the local client, not frontier', async () => {
     const deps = makeDeps();
     const out = await routeLLMCall(deps, baseRequest());
     expect(out.tier).toBe('local');
     expect(out.responseText).toBe('a small green thought');
-    expect(deps.callRunpod).toHaveBeenCalledTimes(1);
-    expect(deps.callAnthropic).not.toHaveBeenCalled();
+    expect(deps.callLocal).toHaveBeenCalledTimes(1);
+    expect(deps.callFrontier).not.toHaveBeenCalled();
   });
 
   it('writes the cache with tier="local" for local calls', async () => {
@@ -72,36 +72,38 @@ describe('routeLLMCall — local tier dispatch', () => {
     );
   });
 
-  it('frontier callTypes still route to Anthropic, not RunPod', async () => {
+  it('frontier callTypes route to the frontier client, not local', async () => {
     const deps = makeDeps();
     await routeLLMCall(deps, { ...baseRequest(), callType: 'conversation_reply' });
-    expect(deps.callAnthropic).toHaveBeenCalledTimes(1);
-    expect(deps.callRunpod).not.toHaveBeenCalled();
+    expect(deps.callFrontier).toHaveBeenCalledTimes(1);
+    expect(deps.callLocal).not.toHaveBeenCalled();
   });
 });
 
-describe('routeLLMCall — RunPod 5xx fallback (spec §3.5 degradation)', () => {
-  it('returns a degraded empty response when RunPod 5xx — twin says nothing this tick', async () => {
-    const callRunpod = vi
+describe('routeLLMCall — local 5xx fallback (spec §3.5 degradation)', () => {
+  it('returns a degraded empty response when local provider fails — twin says nothing this tick', async () => {
+    const callLocal = vi
       .fn()
-      .mockRejectedValue(new Error('RunPod 503: pod cold'));
-    const deps = makeDeps({ callRunpod });
+      .mockRejectedValue(new Error('deepseek 503: backend overloaded'));
+    const deps = makeDeps({ callLocal });
     const out = await routeLLMCall(deps, baseRequest());
     expect(out.responseText).toBe('');
     expect(out.degraded).toBe(true);
     expect(out.tier).toBe('local');
     // Don't cache the degraded fallback — next tick should re-try.
     expect(deps.writeCache).not.toHaveBeenCalled();
+    // Don't bill spend on a failure either.
+    expect(deps.addDailySpendUsd).not.toHaveBeenCalled();
   });
 
   it('does NOT degrade-fallback for frontier 5xx — keeps retry-then-throw', async () => {
-    const callAnthropic = vi
+    const callFrontier = vi
       .fn()
-      .mockRejectedValue(new Error('Anthropic 500: server'));
-    const deps = makeDeps({ callAnthropic });
+      .mockRejectedValue(new Error('deepseek 500: server'));
+    const deps = makeDeps({ callFrontier });
     await expect(
       routeLLMCall(deps, { ...baseRequest(), callType: 'conversation_reply' }),
-    ).rejects.toThrow(/Anthropic 500/);
+    ).rejects.toThrow(/deepseek 500/);
   });
 });
 
@@ -117,8 +119,8 @@ describe('routeLLMCall — per-agent kill-switch (spec §3.5 cost cap)', () => {
     await expect(routeLLMCall(deps, baseRequest())).rejects.toThrow(
       new RegExp(KILL_SWITCH_ERROR_PREFIX),
     );
-    expect(deps.callRunpod).not.toHaveBeenCalled();
-    expect(deps.callAnthropic).not.toHaveBeenCalled();
+    expect(deps.callLocal).not.toHaveBeenCalled();
+    expect(deps.callFrontier).not.toHaveBeenCalled();
   });
 
   it('kill-switch applies to frontier calls too (twin is fully paused)', async () => {
@@ -148,17 +150,26 @@ describe('routeLLMCall — per-agent kill-switch (spec §3.5 cost cap)', () => {
     expect(args.costUsd).toBeGreaterThan(0);
   });
 
-  it('does NOT increment spend for local-tier calls (RunPod is flat-rate)', async () => {
+  it('DOES increment spend on local-tier calls now (DeepSeek bills per token, unlike flat-rate RunPod)', async () => {
     const deps = makeDeps();
     await routeLLMCall(deps, baseRequest());
-    expect(deps.addDailySpendUsd).not.toHaveBeenCalled();
+    expect(deps.addDailySpendUsd).toHaveBeenCalledTimes(1);
+    const call = (deps.addDailySpendUsd as ReturnType<typeof vi.fn>).mock
+      .calls[0];
+    expect(call).toBeDefined();
+    const args = call![0];
+    // Local cost is much lower than frontier — verify the magnitude
+    // matches V4 Flash pricing (~$0.14/M input, ~$0.28/M output) not
+    // V4 Pro pricing.
+    expect(args.costUsd).toBeLessThan(0.001);
+    expect(args.costUsd).toBeGreaterThan(0);
   });
 
-  it('does NOT increment spend on a degraded fallback (failed call shouldn\'t bill)', async () => {
+  it('does NOT increment spend on a frontier failure (failed call shouldn\'t bill)', async () => {
     const deps = makeDeps({
-      callAnthropic: vi
+      callFrontier: vi
         .fn()
-        .mockRejectedValue(new Error('Anthropic 500')),
+        .mockRejectedValue(new Error('deepseek 500')),
     });
     // Frontier 5xx throws — spend stays at zero.
     await expect(

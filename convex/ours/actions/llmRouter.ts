@@ -2,18 +2,17 @@ import { v } from 'convex/values';
 import { action } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { routeLLMCall } from '../lib/llmRouterCore';
-import { callAnthropicAPI } from '../lib/anthropicClient';
-import { callRunpodAPI } from '../lib/runpodClient';
+import { callDeepseekAPI } from '../lib/deepseekClient';
 
 // Spec §5.1 single chokepoint. Every LLM call in the system routes
-// through this action — scripts/check-no-bare-llm-calls.sh fails CI if
-// any file outside ours/lib/anthropicClient.ts imports the SDK.
+// through this action — scripts/check-no-bare-llm-calls.sh fails CI
+// if any file outside ours/lib/deepseekClient.ts hits the DeepSeek
+// API directly.
 //
-// The action is a thin wire from ActionCtx to the pure routeLLMCall in
-// llmRouterCore: idempotency reads/writes, kill-switch spend
-// lookup/increment, and Anthropic/RunPod calls all flow as deps. The
-// internal-only query/mutation wrappers bridge the ctx.db gap (actions
-// have no direct db access).
+// Both tiers go through callDeepseekAPI; llmRouterCore picks the
+// model (V4 Pro vs V4 Flash). The deps interface is provider-
+// agnostic so a future per-tier provider split won't change this
+// file.
 export default action({
   args: {
     callType: v.union(
@@ -44,8 +43,8 @@ export default action({
           ctx.runQuery(ref.ours.queries.getCachedLlmCall.default, k),
         writeCache: (k) =>
           ctx.runMutation(ref.ours.mutations.recordLlmCall.default, k),
-        callAnthropic: callAnthropicAPI,
-        callRunpod: callRunpodAPI,
+        callFrontier: callDeepseekAPI,
+        callLocal: callDeepseekAPI,
         lookupDailySpendUsd: (k) =>
           ctx.runQuery(ref.ours.queries.getAgentDailySpend.default, k),
         addDailySpendUsd: (k) =>

@@ -25,14 +25,14 @@ describe('dateUtcBucket', () => {
   });
 });
 
-describe('estimateFrontierCostUsd — Sonnet 4.6 pricing', () => {
-  it('charges $3/M input + $15/M output', () => {
-    // 1k input + 200 output @ Sonnet 4.6 = $0.003 + $0.003 = $0.006
+describe('estimateFrontierCostUsd — DeepSeek V4 Pro post-promo pricing', () => {
+  it('charges $1.74/M input + $3.48/M output', () => {
+    // 1k input + 200 output = $0.00174 + $0.000696 = $0.002436
     const cost = estimateFrontierCostUsd({
       input_tokens: 1_000,
       output_tokens: 200,
     });
-    expect(cost).toBeCloseTo(0.006, 6);
+    expect(cost).toBeCloseTo(0.002436, 6);
   });
 
   it('handles zero usage as zero cost (defensive)', () => {

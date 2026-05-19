@@ -31,15 +31,15 @@ function makeDeps(overrides: Partial<RouteDeps> = {}): RouteDeps {
   return {
     lookupCache: vi.fn().mockResolvedValue(null),
     writeCache: vi.fn().mockResolvedValue(undefined),
-    callAnthropic: vi.fn().mockResolvedValue({
+    callFrontier: vi.fn().mockResolvedValue({
       text: 'a quiet kind of bright',
       usage: { input_tokens: 80, output_tokens: 9 },
     }),
     // Local-tier dep — these tests only exercise frontier callTypes,
-    // so RunPod is never called. The mock exists to satisfy the
-    // required-dep contract introduced in Task 12.
-    callRunpod: vi.fn().mockRejectedValue(
-      new Error('callRunpod should not run for frontier tests'),
+    // so the local client is never called. The mock exists to satisfy
+    // the required-dep contract.
+    callLocal: vi.fn().mockRejectedValue(
+      new Error('callLocal should not run for frontier tests'),
     ),
     lookupDailySpendUsd: vi.fn().mockResolvedValue(0),
     addDailySpendUsd: vi.fn().mockResolvedValue(undefined),
@@ -49,7 +49,7 @@ function makeDeps(overrides: Partial<RouteDeps> = {}): RouteDeps {
 }
 
 describe('routeLLMCall — cache behavior', () => {
-  it('returns cached response without calling Anthropic on hit', async () => {
+  it('returns cached response without calling the frontier provider on hit', async () => {
     const deps = makeDeps({
       lookupCache: vi
         .fn()
@@ -58,17 +58,17 @@ describe('routeLLMCall — cache behavior', () => {
     const out = await routeLLMCall(deps, baseRequest());
     expect(out.responseText).toBe('still soft, like the bay');
     expect(out.cached).toBe(true);
-    expect(deps.callAnthropic).not.toHaveBeenCalled();
+    expect(deps.callFrontier).not.toHaveBeenCalled();
     expect(deps.writeCache).not.toHaveBeenCalled();
   });
 
-  it('on cache miss calls Anthropic, writes cache, returns the new response', async () => {
+  it('on cache miss calls frontier, writes cache, returns the new response', async () => {
     const deps = makeDeps();
     const req = baseRequest();
     const out = await routeLLMCall(deps, req);
     expect(out.cached).toBe(false);
     expect(out.responseText).toBe('a quiet kind of bright');
-    expect(deps.callAnthropic).toHaveBeenCalledTimes(1);
+    expect(deps.callFrontier).toHaveBeenCalledTimes(1);
     expect(deps.writeCache).toHaveBeenCalledTimes(1);
     expect(deps.writeCache).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -82,13 +82,13 @@ describe('routeLLMCall — cache behavior', () => {
 });
 
 describe('routeLLMCall — model + token caps', () => {
-  it('routes to the frontier model (Sonnet 4.6) for non-ambient callTypes', async () => {
+  it('routes to the frontier model (deepseek-v4-pro) for non-ambient callTypes', async () => {
     const deps = makeDeps();
     await routeLLMCall(deps, baseRequest());
-    const call = (deps.callAnthropic as ReturnType<typeof vi.fn>).mock
+    const call = (deps.callFrontier as ReturnType<typeof vi.fn>).mock
       .calls[0]![0];
     expect(call.model).toBe(FRONTIER_MODEL);
-    expect(FRONTIER_MODEL).toBe('claude-sonnet-4-6');
+    expect(FRONTIER_MODEL).toBe('deepseek-v4-pro');
   });
 
   it.each([
@@ -101,7 +101,7 @@ describe('routeLLMCall — model + token caps', () => {
     async (callType, expected) => {
       const deps = makeDeps();
       await routeLLMCall(deps, { ...baseRequest(), callType });
-      const call = (deps.callAnthropic as ReturnType<typeof vi.fn>).mock
+      const call = (deps.callFrontier as ReturnType<typeof vi.fn>).mock
         .calls[0]![0];
       expect(call.maxTokens).toBe(expected);
       expect(OUTPUT_TOKEN_CAPS[callType]).toBe(expected);
@@ -112,7 +112,7 @@ describe('routeLLMCall — model + token caps', () => {
     const deps = makeDeps();
     const req = baseRequest();
     await routeLLMCall(deps, req);
-    const call = (deps.callAnthropic as ReturnType<typeof vi.fn>).mock
+    const call = (deps.callFrontier as ReturnType<typeof vi.fn>).mock
       .calls[0]![0];
     expect(call.system).toBe(req.systemPrompt);
   });
@@ -120,45 +120,45 @@ describe('routeLLMCall — model + token caps', () => {
 
 describe('routeLLMCall — retry on 5xx, fail-fast on 4xx', () => {
   it('retries 3x on transient 5xx then succeeds', async () => {
-    const callAnthropic = vi
+    const callFrontier = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Anthropic 500: server'))
-      .mockRejectedValueOnce(new Error('Anthropic 529: overloaded'))
+      .mockRejectedValueOnce(new Error('deepseek 500: server'))
+      .mockRejectedValueOnce(new Error('deepseek 529: overloaded'))
       .mockResolvedValueOnce({
         text: 'finally got through',
         usage: { input_tokens: 10, output_tokens: 4 },
       });
-    const deps = makeDeps({ callAnthropic });
+    const deps = makeDeps({ callFrontier });
     const out = await routeLLMCall(deps, baseRequest());
     expect(out.responseText).toBe('finally got through');
-    expect(callAnthropic).toHaveBeenCalledTimes(3);
+    expect(callFrontier).toHaveBeenCalledTimes(3);
   });
 
   it('throws after exhausting all retries', async () => {
-    const callAnthropic = vi
+    const callFrontier = vi
       .fn()
-      .mockRejectedValue(new Error('Anthropic 500: server'));
-    const deps = makeDeps({ callAnthropic });
+      .mockRejectedValue(new Error('deepseek 500: server'));
+    const deps = makeDeps({ callFrontier });
     await expect(routeLLMCall(deps, baseRequest())).rejects.toThrow(
-      /Anthropic 500/,
+      /deepseek 500/,
     );
-    expect(callAnthropic).toHaveBeenCalledTimes(3);
+    expect(callFrontier).toHaveBeenCalledTimes(3);
   });
 
   it('does not retry on a 4xx (caller error) — fails fast', async () => {
-    const callAnthropic = vi
+    const callFrontier = vi
       .fn()
-      .mockRejectedValue(new Error('Anthropic 400: bad request'));
-    const deps = makeDeps({ callAnthropic });
+      .mockRejectedValue(new Error('deepseek 400: bad request'));
+    const deps = makeDeps({ callFrontier });
     await expect(routeLLMCall(deps, baseRequest())).rejects.toThrow(/400/);
-    expect(callAnthropic).toHaveBeenCalledTimes(1);
+    expect(callFrontier).toHaveBeenCalledTimes(1);
   });
 
   it('never writes the cache when all retries fail', async () => {
-    const callAnthropic = vi
+    const callFrontier = vi
       .fn()
-      .mockRejectedValue(new Error('Anthropic 500: server'));
-    const deps = makeDeps({ callAnthropic });
+      .mockRejectedValue(new Error('deepseek 500: server'));
+    const deps = makeDeps({ callFrontier });
     await expect(routeLLMCall(deps, baseRequest())).rejects.toThrow();
     expect(deps.writeCache).not.toHaveBeenCalled();
   });

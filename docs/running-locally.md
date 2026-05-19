@@ -6,7 +6,7 @@ mapping, games, instructor UI) is Tier 3 — covered by Tasks 15+ of the
 plan and not built yet.
 
 If you only care about smoke-testing the upload pipeline against the
-fixtures, do **§1–§4** and **§6**. Everything else is for going beyond
+fixtures, do **§1–§5** and **§7**. Everything else is for going beyond
 that.
 
 ---
@@ -22,17 +22,17 @@ git --version
 Accounts you'll need:
 
 - **Convex** — free tier is fine for dev. Sign up at https://convex.dev.
-- **Anthropic** — production-grade key. The frontier-tier llmRouter
-  hits Claude Sonnet 4.6.
+- **DeepSeek** — production-grade key. The llmRouter sends everything
+  to DeepSeek: V4 Pro for the frontier tier (conversations, scans,
+  reflections), V4 Flash for the local tier (idle thoughts, move
+  decisions). One key covers both. Materially cheaper than Anthropic
+  Sonnet 4.6 or OpenAI GPT-5.4 on both list price and (auto-cached)
+  effective cost. Note: data flows to DeepSeek's servers (China-
+  hosted) — flag for your privacy/compliance posture.
 - **Together** — for Llama Guard 3 prompt-injection scans. Without
   this key, every upload fails-closed (see §4).
-- **RunPod** (optional) — for the local tier of llmRouter (idle
-  thoughts, move decisions). Without it twins silently skip ambient
-  ticks (Task 12 silent-twin fallback).
 
 Then clone and install:
-
-If you don't already have the repo checked out:
 
 ```bash
 git clone <your-agent-town-fork-url>   # paste your fork's URL here
@@ -88,11 +88,11 @@ bunx convex env list   # should print an empty list (no errors)
 ## 3. Environment variables
 
 `bunx convex env set` writes to the dev deployment by default (use
-`--prod` once a prod deployment exists — see §9). Open a second
+`--prod` once a prod deployment exists — see §8). Open a second
 terminal so `convex dev` keeps watching in the first.
 
 ```bash
-bunx convex env set ANTHROPIC_API_KEY sk-ant-...
+bunx convex env set DEEPSEEK_API_KEY sk-...
 bunx convex env set TOGETHER_API_KEY ...
 
 # Required if you plan to register an instructor with WebAuthn (Task 7).
@@ -101,8 +101,6 @@ bunx convex env set TOGETHER_API_KEY ...
 # because 3000 is taken, change ORIGIN to match or registration breaks.
 bunx convex env set AGENT_TOWN_RP_ID localhost
 bunx convex env set AGENT_TOWN_ORIGIN http://localhost:3000
-
-# RunPod is optional — see §5. Only set these once you have an endpoint.
 ```
 
 Confirm shell-side env is in place (you wrote this in §2 step 1):
@@ -133,51 +131,24 @@ because they have different fallback semantics:
 - **`piiScan` short-circuits in regex when PII is present**, so the
   LLM is only called on cards that pass the regex layer. That means:
   - `with-pii.md` (regex hits phone + email + address) → blocked
-    before any Anthropic call. Works without `ANTHROPIC_API_KEY`.
+    before any DeepSeek call. Works without `DEEPSEEK_API_KEY`.
   - `clean-zh.md` (no regex hits) → falls through to the LLM
-    classifier, which needs `ANTHROPIC_API_KEY` set. Without the key,
+    classifier, which needs `DEEPSEEK_API_KEY` set. Without the key,
     the classifier throws and the result is `manual_review` (not
     block, not pass).
 
-The Anthropic SDK reads `ANTHROPIC_API_KEY` from env automatically —
-nothing in our code references the variable directly.
+`DEEPSEEK_API_KEY` also gates the local-tier calls (`idle_thought`,
+`move_decision`). Without it, every local call falls through the
+silent-twin path (`degraded: true`, empty response) per spec §3.5 —
+the upload flow still works, but ambient ticks emit nothing.
+
+The DeepSeek client reads `DEEPSEEK_API_KEY` from env directly in
+`convex/ours/lib/deepseekClient.ts` and throws a clear error if it's
+missing.
 
 ---
 
-## 5. RunPod endpoint (optional, for local tier)
-
-Skip this section if you're OK with twins being silent during ambient
-ticks. The frontier-tier conversation path doesn't need RunPod.
-
-```bash
-# 1. Create a Serverless endpoint at https://runpod.io/console/serverless.
-# 2. Deploy a vLLM template with model Qwen/Qwen3-7B-Instruct (or similar).
-# 3. Endpoint must accept POST /runsync with body:
-#      {
-#        "input": {
-#          "model": "qwen3-7b",
-#          "system": "<persona prompt>",
-#          "messages": [{"role": "user", "content": "..."}],
-#          "max_tokens": 80,
-#          "temperature": 0.7
-#        }
-#      }
-#    and return: { "status": "COMPLETED",
-#                  "output": { "choices": [{"message": {"content": "..."}}],
-#                              "usage": { "prompt_tokens", "completion_tokens" } } }
-# 4. Copy the endpoint ID and an API key.
-
-bunx convex env set RUNPOD_ENDPOINT_ID <id>
-bunx convex env set RUNPOD_API_KEY <key>
-```
-
-If your template uses a different envelope (e.g., raw OpenAI without
-the `input` wrapper), edit `convex/ours/lib/runpodClient.ts`'s `body`
-and `parseRunpodReply` to match.
-
----
-
-## 6. Configure scheduled class sessions
+## 5. Configure scheduled class sessions
 
 `config/sessions.json` ships with an empty `sessions` array (plus a
 `_comment` key the cron ignores). Until you populate it, the
@@ -200,18 +171,18 @@ The file is bundled into the Convex deployment, so edits require
 `convex dev` (or `convex deploy` for prod) to pick them up. `convex
 dev` running in §2 will hot-reload automatically. For manual override
 during dev, an instructor with a valid session token can call
-`ours/mutations/resumeWorld:default` — see §8.
+`ours/mutations/resumeWorld:default` — see §7.
 
 ---
 
-## 7. Run it
+## 6. Run it
 
-Two terminals (the `convex dev` one should already be running from
-§2 — leave it):
+`bunx convex dev` should already be running in Terminal 1 from §2 —
+leave it. Open Terminal 2 for the shell:
 
 ```bash
-# Terminal 1 — Convex backend (watches convex/ and redeploys functions)
-bunx convex dev
+# Terminal 1 (already running from §2)
+# bunx convex dev — restart only if you closed it.
 # Wait for: "Convex functions ready!" before opening the browser.
 
 # Terminal 2 — Next.js shell
@@ -226,7 +197,7 @@ empty URL.
 
 ---
 
-## 8. Smoke test the upload flow
+## 7. Smoke test the upload flow
 
 Build a zip from each fixture:
 
@@ -262,7 +233,7 @@ bunx convex run ours/actions/uploadTwin:default \
 # → { uploadSessionToken: "...", twinId: "..." }
 
 # Scans run via ctx.scheduler.runAfter(0, ...) — typically 1-30s
-# depending on Anthropic + Together latency. Poll:
+# depending on DeepSeek + Together latency. Poll:
 bunx convex run ours/queries/uploadResultByToken:byToken \
   '{"uploadSessionToken": "<token from above>"}'
 # state: 'pending' → still scanning. Retry every few seconds.
@@ -282,7 +253,7 @@ bunx convex run ours/mutations/resumeWorld:default \
 
 ---
 
-## 9. Production deploy
+## 8. Production deploy
 
 Convex's prod story is "different deployment, different deploy key"
 — there's no `--prod` flag on `convex deploy`. The deployment is
@@ -293,15 +264,13 @@ deploy time.
 # 1. Create a production deployment in the Convex dashboard
 #    (Project → Settings → Production). Copy its deploy key.
 
-# 2. Test the prod deployment from a non-prod context before
-#    committing to it:
-CONVEX_DEPLOY_KEY=<prod-key> bunx convex env set --prod ANTHROPIC_API_KEY ...
+# 2. Set all prod env vars BEFORE pushing code:
+CONVEX_DEPLOY_KEY=<prod-key> bunx convex env set --prod DEEPSEEK_API_KEY ...
 CONVEX_DEPLOY_KEY=<prod-key> bunx convex env set --prod TOGETHER_API_KEY ...
 CONVEX_DEPLOY_KEY=<prod-key> bunx convex env set --prod AGENT_TOWN_RP_ID example.com
 CONVEX_DEPLOY_KEY=<prod-key> bunx convex env set --prod AGENT_TOWN_ORIGIN https://example.com
-# ...and RunPod if you have it.
 
-# 3. Verify all prod env vars are set BEFORE pushing code:
+# 3. Verify all prod env vars are set:
 CONVEX_DEPLOY_KEY=<prod-key> bunx convex env list --prod
 
 # 4. Deploy code to prod:
@@ -315,7 +284,7 @@ vercel env add NEXT_PUBLIC_CONVEX_URL production
 
 # Test a preview deployment against prod Convex first:
 vercel
-# Visit the preview URL, smoke-test §8 against it.
+# Visit the preview URL, smoke-test §7 against it.
 
 # Then promote:
 vercel --prod
@@ -332,7 +301,7 @@ WebAuthn quirks for prod:
 
 ---
 
-## 10. Known gaps from the current state
+## 9. Known gaps from the current state
 
 What works after this setup:
 
@@ -342,8 +311,9 @@ What works after this setup:
   mutations directly.
 - ✅ Class-hours scheduling (Task 13) — cron flips worldState based
   on `config/sessions.json`.
-- ✅ Per-twin daily $0.50 kill-switch — fires if a twin's frontier
-  spend exceeds the cap.
+- ✅ Per-twin daily $0.50 kill-switch — fires if a twin's combined
+  frontier + local DeepSeek spend exceeds the cap. Both tiers bill
+  per-token (V4 Pro at $1.74/$3.48 per M, V4 Flash at $0.14/$0.28).
 
 What does **not** work yet:
 
@@ -357,7 +327,7 @@ What does **not** work yet:
   `convex deploy` errors with "Cannot find module 'sharp'" or
   similar, the workaround is to remove the avatar re-encoding step
   from `convex/ours/actions/uploadTwin.ts` and skip avatars in v1.
-  The fixtures have no avatars, so the smoke test in §8 doesn't
+  The fixtures have no avatars, so the smoke test in §7 doesn't
   exercise this path; you'll only hit it with real student uploads.
 - ❌ Twin → player mapping (Task 15).
 - ❌ Noticeboard, digests, retraction UI, audit log, Decrypto game,
@@ -381,3 +351,36 @@ To resolve the deploy-composition question, the realistic options:
 
 Option 1 is the path of least resistance. Worth surfacing before
 Task 15.
+
+---
+
+## Cost expectations (v1, class-hours-only)
+
+Per spec §5.3 the v1 envelope was ~$90-105/mo with Anthropic + RunPod.
+With DeepSeek V4 Pro/Flash and same usage shape, expect roughly
+**$10-15/mo of LLM spend** plus ~$25/mo Convex Pro if needed.
+
+**Frontier (V4 Pro)** at post-promo $1.74 in / $3.48 out per M:
+
+- ~4000 calls/month × 500 input + 200 output tokens per spec §5.3
+  envelope.
+- Without caching: 4000 × 500 × $1.74/M = $3.48 input, 4000 × 200 ×
+  $3.48/M = $2.78 output → **$6.26/mo**.
+- With auto-cache (~99% off on hits at $0.0145/M cache-hit rate, ~60%
+  hit rate assumed per spec): cache savings cut input cost ~50% →
+  **~$4-5/mo**.
+
+**Local (V4 Flash)** at $0.14 in / $0.28 out per M:
+
+- High-volume ambient. At ~40-80 token outputs and ~200 token inputs
+  per tick, per-call cost is ~$0.00003. Even at 20 agents × 6h/week ×
+  one ambient call per second, monthly spend lands ~**$3-6/mo**.
+
+**Together (Llama Guard 3)**: negligible — ~$0.20/M and cards are
+~1500 tokens, so even 100 uploads/semester is fractions of a dollar.
+
+**V4 Pro promo (75% off → $0.435/$0.87 per M) runs through
+2026-05-31 15:59 UTC.** During the promo the frontier line lands
+nearer $1-1.5/mo. The kill-switch ($0.50/twin/day) is hard-coded
+against post-promo pricing so it fires more aggressively during the
+promo window — exactly the conservative behavior the spec asks for.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Exercise scripts/check-no-bare-llm-calls.sh end-to-end:
 #   1. clean tree                                 → PASS
-#   2. drop an SDK import outside the allowlist   → FAIL
-#   3. drop an SDK import inside a test file      → PASS (mocking exemption)
-#   4. drop an SDK import inside ai-town-fork/    → PASS (additivity gate
+#   2. drop a DeepSeek API hit outside the allowlist → FAIL
+#   3. drop a DeepSeek API hit inside a test file → PASS (mocking exemption)
+#   4. drop a DeepSeek API hit inside ai-town-fork/ → PASS (additivity gate
 #                                                  already covers it)
 #
 # The fixtures are written to predictable paths and removed even if the
@@ -25,38 +25,39 @@ if ! bash scripts/check-no-bare-llm-calls.sh > /dev/null 2>&1; then
   exit 1
 fi
 
-# 2. unauthorized SDK import → FAIL
+# 2. unauthorized DeepSeek hit → FAIL
 cat > "$BAD_FILE" <<'EOF'
-import Anthropic from '@anthropic-ai/sdk';
-export const c = new Anthropic();
+export async function rogue() {
+  return fetch('https://api.deepseek.com/v1/chat/completions');
+}
 EOF
 if bash scripts/check-no-bare-llm-calls.sh > /dev/null 2>&1; then
-  echo "FAIL: unauthorized @anthropic-ai/sdk import should fail the check"
+  echo "FAIL: unauthorized api.deepseek.com hit should fail the check"
   exit 1
 fi
 rm -f "$BAD_FILE"
 
-# 3. SDK import inside a test file → PASS (mocking exemption)
+# 3. DeepSeek hit inside a test file → PASS (mocking exemption)
 cat > "$TEST_FILE" <<'EOF'
 import { describe } from 'vitest';
-// vi.mock('@anthropic-ai/sdk') would appear in real tests.
-import '@anthropic-ai/sdk';
+// A test fixture that simulates a deepseek URL — legitimate in tests.
+const url = 'https://api.deepseek.com/v1/chat/completions';
 describe('placeholder', () => {});
 EOF
 if ! bash scripts/check-no-bare-llm-calls.sh > /dev/null 2>&1; then
-  echo "FAIL: SDK import inside a test file should be exempt"
+  echo "FAIL: DeepSeek URL inside a test file should be exempt"
   exit 1
 fi
 rm -f "$TEST_FILE"
 
-# 4. SDK import inside ai-town-fork/ → PASS (additivity gate covers it)
+# 4. DeepSeek hit inside ai-town-fork/ → PASS (additivity gate covers it)
 cat > "$TOWN_FILE" <<'EOF'
-// Upstream ai-town might import the SDK; that's policed by the
-// Task 2 additivity gate, not this script.
-import '@anthropic-ai/sdk';
+// Upstream ai-town code; policed by the Task 2 additivity gate, not
+// this script.
+const url = 'https://api.deepseek.com/v1/chat/completions';
 EOF
 if ! bash scripts/check-no-bare-llm-calls.sh > /dev/null 2>&1; then
-  echo "FAIL: SDK import inside ai-town-fork/ should be skipped here"
+  echo "FAIL: DeepSeek URL inside ai-town-fork/ should be skipped here"
   exit 1
 fi
 rm -f "$TOWN_FILE"
