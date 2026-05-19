@@ -47,8 +47,10 @@ for d in aiTown agent engine util; do
   rm -rf "${dst}/${d}"
 done
 rm -f "${dst}/constants.ts" "${dst}/messages.ts" \
-      "${dst}/init.ts" "${dst}/world.ts" \
-      "${dst}/music.ts" "${dst}/http.ts"
+      "${dst}/init.ts" "${dst}/world.ts" "${dst}/testing.ts" \
+      "${dst}/http.ts"
+# NOTE: do NOT remove convex/music.ts — it's our hand-written stub
+# replacing ai-town's Replicate-dependent original. See below.
 rm -rf "${data_dst}"
 
 # Copy fresh.
@@ -60,12 +62,15 @@ cp "${src}/constants.ts" "${dst}/constants.ts"
 cp "${src}/messages.ts" "${dst}/messages.ts"
 cp "${src}/init.ts" "${dst}/init.ts"
 cp "${src}/world.ts" "${dst}/world.ts"
+cp "${src}/testing.ts" "${dst}/testing.ts"
 # schema.ts: replaced by our composed convex/schema.ts
 # crons.ts: conflicts with our convex/crons.ts; ai-town's crons (if
 #   any land later) get manually re-registered there
-# testing.ts: jest-style test scaffolding, not runtime
-# music.ts: depends on the `replicate` npm package (AI-generated
-#   ambient music). Skipped — adds a vendor + API key + isn't core.
+# music.ts: ai-town's full music.ts imports `replicate` (AI music
+#   generation). We hand-write a stub at convex/music.ts that exposes
+#   only the public getBackgroundMusic query — what the MusicButton
+#   needs — without the Replicate vendor. The stub is NOT removed
+#   above and NOT overwritten here.
 # http.ts: only routes the Replicate webhook — skipped with music.ts.
 
 # Strip ai-town's jest-style .test.ts files. Our root tsconfig's
