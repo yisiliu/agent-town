@@ -32,6 +32,8 @@ interface PipelineRunArgs {
   // path through the scans without real network calls.
   piiSeverity?: 'HIGH' | 'MEDIUM' | 'NONE';
   injectionVerdict?: 'safe' | 'unsafe';
+  // The LLM injection layer's severity (separate from Llama Guard).
+  injectionSeverity?: 'HIGH' | 'MEDIUM' | 'NONE';
 }
 
 type Outcome =
@@ -103,8 +105,9 @@ async function runPipeline(args: PipelineRunArgs): Promise<Outcome> {
       classify: async () => ({
         verdict: args.injectionVerdict ?? 'safe',
       }),
+      classifyInjection: async () => args.injectionSeverity ?? 'NONE',
     },
-    { text },
+    { text, idempotencyKey: 'integration-inj' },
   );
   const outcome = reconcileScanResults(pii, promptInjection);
 
@@ -202,16 +205,18 @@ describe('upload pipeline — end-to-end through each fixture', () => {
     expect(joined).toMatch(/address/i);
   });
 
-  it('with-injection.md → rejected with prompt-injection reasons', async () => {
+  it('with-injection.md → rejected by LLM injection classifier (Llama Guard misses it)', async () => {
     const md = await loadFixtureCard('with-injection');
     const out = await runPipeline({
       cardMd: md,
       piiSeverity: 'NONE',
-      injectionVerdict: 'unsafe',
+      injectionVerdict: 'safe', // Llama Guard 4 doesn't flag injection
+      injectionSeverity: 'HIGH', // DeepSeek-prompted classifier does
     });
     expect(out.state).toBe('rejected');
     if (out.state !== 'rejected') return;
     expect((out.errors ?? []).join(' ')).toMatch(/prompt injection/i);
+    expect((out.errors ?? []).join(' ')).toMatch(/HIGH/);
   });
 
   it('invalid-missing-section.md → rejected at schema stage (never hits scans)', async () => {

@@ -20,6 +20,7 @@ export default action({
       v.literal('game_speech'),
       v.literal('reflection'),
       v.literal('pii_scan'),
+      v.literal('injection_scan'),
       v.literal('idle_thought'),
       v.literal('move_decision'),
     ),

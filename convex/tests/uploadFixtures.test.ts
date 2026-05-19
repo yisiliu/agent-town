@@ -46,8 +46,11 @@ describe('fixture cards — end-to-end gate behavior', () => {
       idempotencyKey: 'fixture-clean',
     });
     const pi = await scanForPromptInjection(
-      { classify: async () => ({ verdict: 'safe' }) },
-      { text: md },
+      {
+        classify: async () => ({ verdict: 'safe' }),
+        classifyInjection: async () => 'NONE',
+      },
+      { text: md, idempotencyKey: 'fixture-clean-inj' },
     );
     expect(pii.decision).toBe('pass');
     expect(pi.decision).toBe('pass');
@@ -77,8 +80,11 @@ describe('fixture cards — end-to-end gate behavior', () => {
       idempotencyKey: 'fixture-pii-2',
     });
     const pi = await scanForPromptInjection(
-      { classify: async () => ({ verdict: 'safe' }) },
-      { text: md },
+      {
+        classify: async () => ({ verdict: 'safe' }),
+        classifyInjection: async () => 'NONE',
+      },
+      { text: md, idempotencyKey: 'fixture-pii-inj' },
     );
     const out = reconcileScanResults(pii, pi);
     expect(out.decision).toBe('block');
@@ -87,17 +93,20 @@ describe('fixture cards — end-to-end gate behavior', () => {
     }
   });
 
-  it('with-injection.md passes validation; injection scanner blocks it', async () => {
+  it('with-injection.md is caught by the LLM injection classifier (Llama Guard misses it)', async () => {
     const md = await loadFixtureCard('with-injection');
     expect(validateCard(md).ok).toBe(true);
-    // PII regex isn't expected to hit; LLM classifier sees plain
-    // injection language. Tested via stubbed classify=unsafe to mirror
-    // a real Llama Guard verdict.
+    // Llama Guard 4's taxonomy is harmful content, not prompt
+    // injection — so the harmful-content layer says safe. The LLM
+    // injection classifier (DeepSeek through llmRouter) is what
+    // actually catches override language like "IGNORE ALL PREVIOUS
+    // INSTRUCTIONS". Stub it returning HIGH.
     const pi = await scanForPromptInjection(
       {
-        classify: async () => ({ verdict: 'unsafe', categories: ['S14'] }),
+        classify: async () => ({ verdict: 'safe' }),
+        classifyInjection: async () => 'HIGH',
       },
-      { text: md },
+      { text: md, idempotencyKey: 'fixture-inj' },
     );
     expect(pi.decision).toBe('block');
   });

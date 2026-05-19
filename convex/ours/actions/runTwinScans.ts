@@ -45,6 +45,7 @@ export default internalAction({
       }),
       ctx.runAction(ref.ours.actions.promptInjectionScan.default, {
         text: card.markdown,
+        idempotencyKey: `injection-scan:${twinId}:${card.cardId}`,
       }),
     ])) as [ScanResult, ScanResult];
 

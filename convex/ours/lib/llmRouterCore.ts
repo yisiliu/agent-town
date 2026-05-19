@@ -16,6 +16,7 @@ export type CallType =
   | 'game_speech'
   | 'reflection'
   | 'pii_scan'
+  | 'injection_scan'
   | 'idle_thought'
   | 'move_decision';
 
@@ -42,7 +43,14 @@ export const OUTPUT_TOKEN_CAPS: Record<CallType, number> = {
   conversation_reply: 200,
   game_speech: 300,
   reflection: 500,
-  pii_scan: 200,
+  // Classifier callTypes: ask for one word (HIGH/MEDIUM/NONE) but
+  // DeepSeek V4 Pro defaults to reasoning mode, burning tokens on
+  // chain-of-thought before emitting `content`. A tight cap leaves
+  // an empty `content` field. 1024 gives reasoning room while keeping
+  // billing trivial — single-word answers cost the same regardless of
+  // the cap, only the (rare) verbose response hits it.
+  pii_scan: 1024,
+  injection_scan: 1024,
   idle_thought: 80,
   move_decision: 40,
 };
