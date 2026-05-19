@@ -57,10 +57,14 @@ describe('convex schema', () => {
     }
   });
 
-  describe('ai-town tables preserved untouched', () => {
-    const upstreamNames = Object.keys(upstream.tables);
+  // ai-town tables are NOT composed into the current deployment — the
+  // `'ai-town/upstream'` alias resolves in vitest + tsc but not in
+  // Convex's esbuild bundler. See docs/running-locally.md §9 + the
+  // banner in convex/schema.ts. Re-enable when Task 15 wires
+  // composition through a sync script or repo refactor.
+  describe.skip('ai-town tables preserved untouched (deferred — see schema.ts)', () => {
     it('upstream schema has tables to preserve', () => {
-      expect(upstreamNames.length).toBeGreaterThan(0);
+      expect(Object.keys(upstream.tables).length).toBeGreaterThan(0);
     });
     for (const name of Object.keys(upstream.tables)) {
       it(`re-exports upstream table ${name} by identity`, () => {
