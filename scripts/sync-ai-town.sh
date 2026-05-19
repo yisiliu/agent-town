@@ -82,6 +82,21 @@ cp "${src}/testing.ts" "${dst}/testing.ts"
 find "${dst}/aiTown" "${dst}/agent" "${dst}/engine" "${dst}/util" \
   -name '*.test.ts' -delete
 
+# Patch util/llm.ts:
+#   1. Switch default EMBEDDING_DIMENSION from Ollama (1024, needs a
+#      local ollama server) to Together. We have TOGETHER_API_KEY
+#      already (for Llama Guard 4 in promptInjectionScan).
+#   2. Bump TOGETHER_EMBEDDING_DIMENSION from 768 to 1024. Together
+#      deprecated the 768-dim m2-bert model from serverless; their
+#      only current serverless embedding is multilingual-e5-large-
+#      instruct at 1024. Without bumping, getLLMConfig() throws on
+#      the dimension assertion.
+sed -i.bak -E \
+  -e 's/^export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;$/export const EMBEDDING_DIMENSION: number = TOGETHER_EMBEDDING_DIMENSION;/' \
+  -e 's/^const TOGETHER_EMBEDDING_DIMENSION = 768;$/const TOGETHER_EMBEDDING_DIMENSION = 1024;/' \
+  "${dst}/util/llm.ts"
+rm -f "${dst}/util/llm.ts.bak"
+
 # townHooks.ts lives under ours/ on the source side; mirror that.
 mkdir -p "${dst}/ours"
 cp "${src}/ours/townHooks.ts" "${dst}/ours/townHooks.ts"
