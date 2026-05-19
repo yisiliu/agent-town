@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import { describe, it, expect } from 'vitest';
 import type { Id } from '../_generated/dataModel';
 import {
