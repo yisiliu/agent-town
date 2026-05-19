@@ -144,6 +144,64 @@ function listCandidates(
     .join('\n');
 }
 
+// Grounding facts — surface the actor's ACTUAL game history so the LLM can't
+// confabulate (e.g. "I peeked X and they were a wolf" when no peek happened).
+// Round-3/4 surfaced a hallucinated seer claim in last-words; this prevents
+// that class of bug by always showing what the actor actually did.
+function groundingFacts(
+  state: WerewolfState,
+  actorTwinId: Id<'twins'>,
+  nameMap: Record<string, string>,
+): string {
+  const actorKey = actorTwinId as unknown as string;
+  const role = state.roles[actorKey];
+  const lines: string[] = [];
+
+  if (role === 'seer') {
+    if (state.seerKnowledge.length === 0) {
+      lines.push(
+        '【你的查验记录】**你目前尚未做过任何查验**（首夜或后续皆未成功 peek）。**不要编造查验结果**——如果你说"我查过 X 是狼"，这是谎言，会害死好人。',
+      );
+    } else {
+      const checks = state.seerKnowledge
+        .map(
+          (k) =>
+            `  · Day ${k.day}: ${nameMap[k.target as unknown as string] ?? k.target} = ${k.role}`,
+        )
+        .join('\n');
+      lines.push(
+        `【你的查验记录】（事实，只有你自己看得到）\n${checks}\n\n**只能引用以上事实**——不要声称查验了不在此列的人。`,
+      );
+    }
+  }
+
+  if (role === 'witch') {
+    const saveLine = state.witchSavePotion
+      ? '解药【未使用】'
+      : '解药【已用过】（不可再用）';
+    const poisonLine = state.witchPoisonPotion
+      ? '毒药【未使用】'
+      : '毒药【已用过】（不可再用）';
+    lines.push(
+      `【你的药剂状态】（事实）\n  · ${saveLine}\n  · ${poisonLine}\n\n**只能引用真实状态**——不要声称用过实际上没用的药，或反之。`,
+    );
+  }
+
+  if (role === 'werewolf') {
+    const myBids = Object.entries(state.wolfVotes)
+      .filter(([voter]) => voter === actorKey)
+      .map(([, target]) => nameMap[target] ?? target);
+    if (myBids.length > 0) {
+      lines.push(
+        `【你今晚的刀票】你投给：${myBids.join(', ')}（不一定是最终团队选择）`,
+      );
+    }
+  }
+
+  if (lines.length === 0) return '';
+  return '\n\n===== 事实校验 (DO NOT FABRICATE) =====\n' + lines.join('\n\n') + '\n=========================================';
+}
+
 function renderHiddenMind(m: HiddenMind | undefined): string {
   if (!m) return '';
   return [
@@ -386,6 +444,7 @@ export function buildUserPrompt(args: {
   const log = renderPublicLog(state.publicLog.slice(-8), nameMap);
   const transcript = visibleTurnsToTranscript(visibleTurns, nameMap);
   const hints = focusHints(state, actorTwinId, visibleTurns, nameMap);
+  const grounding = groundingFacts(state, actorTwinId, nameMap);
 
   if (phase === 'sheriff-claim' && kind === 'sheriff-claim') {
     const role = state.roles[actorTwinId as unknown as string];
@@ -434,6 +493,27 @@ Respond JSON: {"thinking":"...","say":"<your PK speech, 1-3 sentences>"}`;
   }
 
   if (phase === 'sheriff-pk-vote' && kind === 'sheriff-pk-vote') {
+    // Surface both round-1 speeches AND PK speeches so the voter sees
+    // the candidate's full pitch.
+    const speechMap = new Map<string, string[]>();
+    for (const t of visibleTurns) {
+      if (
+        t.actorTwinId &&
+        state.sheriffCandidates.includes(t.actorTwinId) &&
+        (t.kind === 'sheriff-claim' || t.kind === 'sheriff-pk-speech')
+      ) {
+        const k = t.actorTwinId as unknown as string;
+        if (!speechMap.has(k)) speechMap.set(k, []);
+        speechMap.get(k)!.push(`[${t.kind}] ${t.text}`);
+      }
+    }
+    const speechBlock = state.sheriffCandidates
+      .map((c) => {
+        const name = nameMap[c as unknown as string] ?? c;
+        const speeches = speechMap.get(c as unknown as string) ?? ['(无发言)'];
+        return `${name} (${c}):\n  ${speeches.join('\n  ')}`;
+      })
+      .join('\n\n');
     return `Day 1 morning — 警长 PK 投票.
 
 PK 加赛投票——你是警下，请从平票候选人中选一位。再平就流警了。
@@ -441,25 +521,47 @@ PK 加赛投票——你是警下，请从平票候选人中选一位。再平�
 PUBLIC LOG:
 ${log}
 
-PK CANDIDATES:
-${listCandidates(state.sheriffCandidates, nameMap)}${hints}
+PK CANDIDATE SPEECHES (round-1 + PK rounds):
+${speechBlock}${hints}${grounding}
 
 Respond JSON: {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (phase === 'sheriff-vote' && kind === 'sheriff-vote') {
     const candidates = state.sheriffCandidates;
+    // Surface each candidate's actual sheriff-claim speech so the voter can
+    // scrutinize bluffs. Without this, voters were picking by name vibes.
+    const candidateSpeechMap = new Map<string, string>();
+    for (const t of visibleTurns) {
+      if (t.kind === 'sheriff-claim' && t.actorTwinId && candidates.includes(t.actorTwinId)) {
+        candidateSpeechMap.set(t.actorTwinId as unknown as string, t.text);
+      }
+    }
+    const speechBlock = candidates
+      .map((c) => {
+        const name = nameMap[c as unknown as string] ?? c;
+        const speech = candidateSpeechMap.get(c as unknown as string) ?? '(无发言记录)';
+        return `${name} (${c}):\n  「${speech}」`;
+      })
+      .join('\n\n');
+
     return `Day 1 morning — 警长投票 (Sheriff election vote).
 
 You are 警下 (a non-candidate). Pick one candidate to be sheriff. The winner gets 1.5x vote weight on day-lynch and gets to make the daily 归票 recommendation.
 
+⚠️ 警长是场上最有影响力的位置——如果让狼人拿到，好人会处于巨大劣势。仔细审视每个候选人的发言：
+- 谁跳了神职 (预言家/猎人)？跳得是否可信？有没有给出具体查验/承诺？
+- 谁说得过于空泛（"我会为大家把关"这种没内容的话）？空话最像狼。
+- 谁的人设和发言风格冲突？（比如一个号称勇敢的人却说话闪烁）
+- 优先选**给出可验证信息**的候选人（比如带查验跳预言家）。
+
 PUBLIC LOG:
 ${log}
 
-CANDIDATES (sheriff-runners):
-${listCandidates(candidates, nameMap)}${hints}
+CANDIDATE SPEECHES (carefully read each):
+${speechBlock}${hints}
 
-Respond JSON: {"thinking":"...","say":"<one sentence on why this candidate>","action":{"target":"<one of the candidate ids>"}}`;
+Respond JSON: {"thinking":"<分析每个候选人>","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (phase === 'sheriff-pull-vote' && kind === 'sheriff-pull-vote') {
@@ -474,7 +576,7 @@ PUBLIC LOG:
 ${log}
 
 TODAY'S DISCUSSION:
-${transcript}${hints}
+${transcript}${hints}${grounding}
 
 CANDIDATES (you may recommend any alive player, excluding yourself):
 ${listCandidates(candidates, nameMap)}
@@ -561,7 +663,7 @@ PUBLIC LOG:
 ${log}
 
 DISCUSSION SO FAR (today):
-${transcript}${hints}${explodeOption}
+${transcript}${hints}${grounding}${explodeOption}
 
 Respond JSON (REQUIRED non-empty "say"): {"thinking":"...","say":"<your public statement>"${youAreWolf ? ',"action":{"self_explode": true} (optional, wolf only)' : ''}}`;
   }
@@ -590,7 +692,7 @@ ${transcript}
 ${wolfHint}
 
 CANDIDATES (all alive):
-${listCandidates(candidates, nameMap)}${hints}${explodeOption}
+${listCandidates(candidates, nameMap)}${hints}${grounding}${explodeOption}
 
 Respond JSON (REQUIRED non-empty target): {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
   }
@@ -618,9 +720,11 @@ PUBLIC LOG:
 ${log}
 
 RECENT DISCUSSION:
-${transcript}${hints}
+${transcript}${hints}${grounding}
 
 You may reveal your real role + any special knowledge (seer checks, witch potions used, hunter intent) to help your team. You may also accuse someone you suspect. Or you may stay tight-lipped if a reveal would hurt your team.${badgeBlock}
+
+★ CRITICAL ★：你的遗言**只能引用上方「事实校验」中真实发生过的事**。不要编造查验、不要谎称用过没用的药——你死了好人靠你的真信息翻盘，假信息会害死他们。
 
 Respond JSON: {"thinking":"...","say":"<your last words, 1-3 sentences>"${isSheriff ? ',"action":{"badge_decision":"pass:<id>" or "destroy"}' : ''}}`;
   }

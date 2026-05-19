@@ -753,6 +753,98 @@ describe('werewolf rules — checkWin (屠边)', () => {
   });
 });
 
+describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
+  it('seer with NO peeks gets explicit "you have not peeked" reminder', () => {
+    const s = initialState(nine, 42);
+    const seer = byRole(s, 'seer')[0]!;
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: seer,
+      phase: 'last-words',
+      kind: 'last-words',
+      visibleTurns: [],
+      aliveNames: {},
+    });
+    expect(p).toContain('你目前尚未做过任何查验');
+    expect(p).toContain('不要编造查验结果');
+  });
+
+  it('seer with peeks gets concrete check history', () => {
+    let s = initialState(nine, 42);
+    const seer = byRole(s, 'seer')[0]!;
+    const wolf = byRole(s, 'werewolf')[0]!;
+    s = {
+      ...s,
+      seerKnowledge: [{ target: wolf, role: 'werewolf', day: 0 }],
+    };
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: seer,
+      phase: 'last-words',
+      kind: 'last-words',
+      visibleTurns: [],
+      aliveNames: { [wolf as unknown as string]: 'AliceWolf' },
+    });
+    expect(p).toContain('AliceWolf = werewolf');
+    expect(p).toContain('只能引用以上事实');
+  });
+
+  it('witch sees actual potion state', () => {
+    let s = initialState(nine, 42);
+    const witch = byRole(s, 'witch')[0]!;
+    // Mark save as used
+    s = { ...s, witchSavePotion: false };
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: witch,
+      phase: 'last-words',
+      kind: 'last-words',
+      visibleTurns: [],
+      aliveNames: {},
+    });
+    expect(p).toContain('解药【已用过】');
+    expect(p).toContain('毒药【未使用】');
+  });
+});
+
+describe('werewolf prompts — sheriff vote sees candidate speeches', () => {
+  it('renders each candidate\'s sheriff-claim speech inline', () => {
+    let s = initialState(nine, 42);
+    const candA = s.alive[0]!;
+    const candB = s.alive[1]!;
+    s = { ...s, sheriffCandidates: [candA, candB], phase: 'sheriff-vote' };
+    const voter = s.alive[2]!;
+    const visibleTurns = [
+      {
+        phase: 'sheriff-claim',
+        kind: 'sheriff-claim',
+        text: '我是 Alice，选我当警长，我会带领大家！',
+        actorTwinId: candA,
+      },
+      {
+        phase: 'sheriff-claim',
+        kind: 'sheriff-claim',
+        text: '我是 Bob，我跳预言家，昨晚查了 X 是金水。',
+        actorTwinId: candB,
+      },
+    ];
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: voter,
+      phase: 'sheriff-vote',
+      kind: 'sheriff-vote',
+      visibleTurns,
+      aliveNames: {
+        [candA as unknown as string]: 'Alice',
+        [candB as unknown as string]: 'Bob',
+      },
+    });
+    expect(p).toContain('我是 Alice');
+    expect(p).toContain('我跳预言家');
+    expect(p).toContain('CANDIDATE SPEECHES');
+  });
+});
+
 describe('werewolf prompts — buildSystemPrompt', () => {
   it('wraps card in UNTRUSTED_CARD delimiters and includes role briefing', () => {
     const s = initialState(nine, 42);
