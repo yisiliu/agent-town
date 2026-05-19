@@ -70,6 +70,7 @@ import type * as ours_mutations_checkAndIncrementAttempts from "../ours/mutation
 import type * as ours_mutations_clearUploadResult from "../ours/mutations/clearUploadResult.js";
 import type * as ours_mutations_createPendingTwin from "../ours/mutations/createPendingTwin.js";
 import type * as ours_mutations_createSession from "../ours/mutations/createSession.js";
+import type * as ours_mutations_devForceResumeWorld from "../ours/mutations/devForceResumeWorld.js";
 import type * as ours_mutations_finalizeScan from "../ours/mutations/finalizeScan.js";
 import type * as ours_mutations_freezeWorld from "../ours/mutations/freezeWorld.js";
 import type * as ours_mutations_instructorAuthenticate from "../ours/mutations/instructorAuthenticate.js";
@@ -194,6 +195,7 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/clearUploadResult": typeof ours_mutations_clearUploadResult;
   "ours/mutations/createPendingTwin": typeof ours_mutations_createPendingTwin;
   "ours/mutations/createSession": typeof ours_mutations_createSession;
+  "ours/mutations/devForceResumeWorld": typeof ours_mutations_devForceResumeWorld;
   "ours/mutations/finalizeScan": typeof ours_mutations_finalizeScan;
   "ours/mutations/freezeWorld": typeof ours_mutations_freezeWorld;
   "ours/mutations/instructorAuthenticate": typeof ours_mutations_instructorAuthenticate;
