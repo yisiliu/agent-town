@@ -36,10 +36,13 @@ const fixtureCache = new Map<string, string>();
 export async function loadFixtureCard(name: string): Promise<string> {
   const cached = fixtureCache.get(name);
   if (cached !== undefined) return cached;
-  // import.meta.url is convex/tests/fixtures/buildTestZip.ts; walk up
-  // three levels to reach the repo root, then into fixtures/cards/.
+  // import.meta.url is tests/fixtures/buildTestZip.ts; walk up two
+  // levels to reach the repo root, then into fixtures/cards/. Lives
+  // outside convex/ deliberately — Convex's bundler doesn't accept
+  // node:* built-ins (readFile, fileURLToPath) in the V8 runtime, so
+  // this helper would error at deploy time if it lived under convex/.
   const here = dirname(fileURLToPath(import.meta.url));
-  const path = resolve(here, '..', '..', '..', 'fixtures', 'cards', `${name}.md`);
+  const path = resolve(here, '..', '..', 'fixtures', 'cards', `${name}.md`);
   const content = await readFile(path, 'utf8');
   fixtureCache.set(name, content);
   return content;

@@ -5,7 +5,7 @@ import schema from '../schema';
 import {
   buildTestZip,
   loadFixtureCard,
-} from './fixtures/buildTestZip';
+} from '../../tests/fixtures/buildTestZip';
 import { validateCard } from '../ours/lib/cardValidator';
 import { scanForPII, type PIIScanDeps } from '../ours/lib/piiScanCore';
 import { scanForPromptInjection } from '../ours/lib/promptInjectionScanCore';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
-import { buildTestZip, loadFixtureCard } from './fixtures/buildTestZip';
+import { buildTestZip, loadFixtureCard } from '../../tests/fixtures/buildTestZip';
 import { validateCard } from '../ours/lib/cardValidator';
 import { scanForPII, type PIIScanDeps } from '../ours/lib/piiScanCore';
 import { scanForPromptInjection } from '../ours/lib/promptInjectionScanCore';
