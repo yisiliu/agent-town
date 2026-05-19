@@ -41,6 +41,7 @@ import type * as ours_actions_llmRouter from "../ours/actions/llmRouter.js";
 import type * as ours_actions_piiScan from "../ours/actions/piiScan.js";
 import type * as ours_actions_promptInjectionScan from "../ours/actions/promptInjectionScan.js";
 import type * as ours_actions_runTwinScans from "../ours/actions/runTwinScans.js";
+import type * as ours_actions_seedTownPlayers from "../ours/actions/seedTownPlayers.js";
 import type * as ours_actions_uploadTwin from "../ours/actions/uploadTwin.js";
 import type * as ours_actions_verifyChatAccess from "../ours/actions/verifyChatAccess.js";
 import type * as ours_crons_sessionWindow from "../ours/crons/sessionWindow.js";
@@ -77,8 +78,10 @@ import type * as ours_mutations_freezeWorld from "../ours/mutations/freezeWorld.
 import type * as ours_mutations_instructorAuthenticate from "../ours/mutations/instructorAuthenticate.js";
 import type * as ours_mutations_instructorRegister from "../ours/mutations/instructorRegister.js";
 import type * as ours_mutations_issueCode from "../ours/mutations/issueCode.js";
+import type * as ours_mutations_queueCreateAgentInline from "../ours/mutations/queueCreateAgentInline.js";
 import type * as ours_mutations_recordLlmCall from "../ours/mutations/recordLlmCall.js";
 import type * as ours_mutations_resumeWorld from "../ours/mutations/resumeWorld.js";
+import type * as ours_queries_defaultWorldStatus from "../ours/queries/defaultWorldStatus.js";
 import type * as ours_queries_getAgentDailySpend from "../ours/queries/getAgentDailySpend.js";
 import type * as ours_queries_getCachedLlmCall from "../ours/queries/getCachedLlmCall.js";
 import type * as ours_queries_getCardForScan from "../ours/queries/getCardForScan.js";
@@ -168,6 +171,7 @@ declare const fullApi: ApiFromModules<{
   "ours/actions/piiScan": typeof ours_actions_piiScan;
   "ours/actions/promptInjectionScan": typeof ours_actions_promptInjectionScan;
   "ours/actions/runTwinScans": typeof ours_actions_runTwinScans;
+  "ours/actions/seedTownPlayers": typeof ours_actions_seedTownPlayers;
   "ours/actions/uploadTwin": typeof ours_actions_uploadTwin;
   "ours/actions/verifyChatAccess": typeof ours_actions_verifyChatAccess;
   "ours/crons/sessionWindow": typeof ours_crons_sessionWindow;
@@ -204,8 +208,10 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/instructorAuthenticate": typeof ours_mutations_instructorAuthenticate;
   "ours/mutations/instructorRegister": typeof ours_mutations_instructorRegister;
   "ours/mutations/issueCode": typeof ours_mutations_issueCode;
+  "ours/mutations/queueCreateAgentInline": typeof ours_mutations_queueCreateAgentInline;
   "ours/mutations/recordLlmCall": typeof ours_mutations_recordLlmCall;
   "ours/mutations/resumeWorld": typeof ours_mutations_resumeWorld;
+  "ours/queries/defaultWorldStatus": typeof ours_queries_defaultWorldStatus;
   "ours/queries/getAgentDailySpend": typeof ours_queries_getAgentDailySpend;
   "ours/queries/getCachedLlmCall": typeof ours_queries_getCachedLlmCall;
   "ours/queries/getCardForScan": typeof ours_queries_getCardForScan;

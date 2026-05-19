@@ -91,6 +91,12 @@ find "${dst}/aiTown" "${dst}/agent" "${dst}/engine" "${dst}/util" \
 #      only current serverless embedding is multilingual-e5-large-
 #      instruct at 1024. Without bumping, getLLMConfig() throws on
 #      the dimension assertion.
+# Apply our patched agentInputs.ts (adds the createAgentInline input
+# handler used by the LLM seed action). Patched copy lives under
+# scripts/patches/ — outside convex/ so Convex's bundler doesn't try
+# to bundle it as a function module.
+cp "${repo}/scripts/patches/agentInputs.ts" "${dst}/aiTown/agentInputs.ts"
+
 sed -i.bak -E \
   -e 's/^export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;$/export const EMBEDDING_DIMENSION: number = TOGETHER_EMBEDDING_DIMENSION;/' \
   -e 's/^const TOGETHER_EMBEDDING_DIMENSION = 768;$/const TOGETHER_EMBEDDING_DIMENSION = 1024;/' \
