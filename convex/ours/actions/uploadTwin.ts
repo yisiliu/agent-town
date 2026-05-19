@@ -3,45 +3,39 @@
 import { v } from 'convex/values';
 import { action } from '../../_generated/server';
 import { internal } from '../../_generated/api';
-import { unzipSync, strFromU8 } from 'fflate';
 import { validateCard } from '../lib/cardValidator';
+import { parseUploadPayload } from '../lib/uploadPayload';
 import { generateUploadSessionToken } from '../lib/uploadResultsStore';
 
-const MAX_ZIP_BYTES = 5 * 1024 * 1024; // 5 MB upload ceiling (cards
-// are <5KB; avatar.png maybe <500KB; anything past 5MB is out-of-spec)
+const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024; // 5 MB upload ceiling.
+// Card.md alone is <5KB; a zip with avatar.png maybe <500KB; anything
+// past 5MB is out-of-spec.
 
 // Spec §4.9 sync upload stage: schema validation + avatar re-encode +
 // pending_scan write + scheduled async scans. Returns an
 // uploadSessionToken the UI polls via uploadResultByToken.byToken.
 //
+// Accepts EITHER a .zip bundle (card.md + optional avatar.png) OR a
+// bare card.md file — see lib/uploadPayload.ts for the detection.
+// distill-twin's `extract` command produces a single card.md, so the
+// bare-md path removes the manual-zip step from the student workflow.
+//
 // Node action because:
-//   - fflate's unzipSync is fine in either runtime, but
+//   - fflate's unzipSync is fine in either runtime
 //   - sharp re-encoding (when an avatar is present) needs native libvips
-//   - Convex Node actions support both
 export default action({
   args: {
-    zipBase64: v.string(),
+    fileBase64: v.string(),
   },
-  handler: async (ctx, { zipBase64 }) => {
-    const zipBytes = decodeBase64(zipBase64);
-    if (zipBytes.byteLength > MAX_ZIP_BYTES) {
+  handler: async (ctx, { fileBase64 }) => {
+    const bytes = decodeBase64(fileBase64);
+    if (bytes.byteLength > MAX_PAYLOAD_BYTES) {
       throw new Error(
-        `uploadTwin: zip exceeds ${MAX_ZIP_BYTES} byte ceiling`,
+        `uploadTwin: payload exceeds ${MAX_PAYLOAD_BYTES} byte ceiling`,
       );
     }
 
-    let files: Record<string, Uint8Array>;
-    try {
-      files = unzipSync(zipBytes);
-    } catch (err) {
-      throw new Error(`uploadTwin: invalid zip — ${(err as Error).message}`);
-    }
-
-    const cardBytes = files['card.md'];
-    if (!cardBytes) {
-      throw new Error('uploadTwin: zip is missing card.md');
-    }
-    const cardText = strFromU8(cardBytes);
+    const { cardText, avatarBytes } = parseUploadPayload(bytes);
     const validation = validateCard(cardText);
     if (!validation.ok) {
       throw new Error(
@@ -49,12 +43,10 @@ export default action({
       );
     }
 
-    // Optional avatar — present in most uploads, absent in tests / dev.
     let avatarStorageId: string | undefined;
-    const avatarBytes = files['avatar.png'];
     if (avatarBytes && avatarBytes.byteLength > 0) {
       // Dynamic import keeps the native lib out of the cold-start path
-      // when no avatar is supplied (tests, schema-only smoke uploads).
+      // when no avatar is supplied (tests, bare-card.md uploads).
       const sharpModule = await import('sharp');
       const sharp = (sharpModule.default ?? sharpModule) as typeof import('sharp');
       const reEncoded = await sharp(avatarBytes)
@@ -63,9 +55,9 @@ export default action({
         .toBuffer();
       // sharp returns a Node Buffer whose .buffer is ArrayBufferLike;
       // copy into a fresh Uint8Array so Blob is happy under strict TS.
-      const bytes = new Uint8Array(reEncoded);
+      const out = new Uint8Array(reEncoded);
       const stored = await ctx.storage.store(
-        new Blob([bytes], { type: 'image/png' }),
+        new Blob([out], { type: 'image/png' }),
       );
       avatarStorageId = stored;
     }

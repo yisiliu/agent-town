@@ -40,8 +40,8 @@ export default function UploadPage() {
     setSubmitError(null);
     try {
       const buf = await file.arrayBuffer();
-      const zipBase64 = arrayBufferToBase64(buf);
-      const { uploadSessionToken } = (await uploadTwin({ zipBase64 })) as {
+      const fileBase64 = arrayBufferToBase64(buf);
+      const { uploadSessionToken } = (await uploadTwin({ fileBase64 })) as {
         uploadSessionToken: string;
       };
       setToken(uploadSessionToken);

@@ -32,6 +32,7 @@ import type * as ours_lib_sessionWindowCore from "../ours/lib/sessionWindowCore.
 import type * as ours_lib_spendTracking from "../ours/lib/spendTracking.js";
 import type * as ours_lib_togetherClient from "../ours/lib/togetherClient.js";
 import type * as ours_lib_uploadFlowCore from "../ours/lib/uploadFlowCore.js";
+import type * as ours_lib_uploadPayload from "../ours/lib/uploadPayload.js";
 import type * as ours_lib_uploadResultsStore from "../ours/lib/uploadResultsStore.js";
 import type * as ours_lib_worldState from "../ours/lib/worldState.js";
 import type * as ours_mutations_addAgentDailySpend from "../ours/mutations/addAgentDailySpend.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "ours/lib/spendTracking": typeof ours_lib_spendTracking;
   "ours/lib/togetherClient": typeof ours_lib_togetherClient;
   "ours/lib/uploadFlowCore": typeof ours_lib_uploadFlowCore;
+  "ours/lib/uploadPayload": typeof ours_lib_uploadPayload;
   "ours/lib/uploadResultsStore": typeof ours_lib_uploadResultsStore;
   "ours/lib/worldState": typeof ours_lib_worldState;
   "ours/mutations/addAgentDailySpend": typeof ours_mutations_addAgentDailySpend;

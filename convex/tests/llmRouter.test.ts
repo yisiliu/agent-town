@@ -95,7 +95,11 @@ describe('routeLLMCall — model + token caps', () => {
     ['conversation_reply', 200],
     ['game_speech', 300],
     ['reflection', 500],
-    ['pii_scan', 200],
+    // Bumped from 200 to 1024 — V4 Pro is a reasoning model and burns
+    // output tokens on chain-of-thought before emitting `content`.
+    // The cap covers BOTH so tight values leave content empty.
+    ['pii_scan', 1024],
+    ['injection_scan', 1024],
   ] as const)(
     'enforces max_tokens cap of %i for %s',
     async (callType, expected) => {

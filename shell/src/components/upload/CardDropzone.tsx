@@ -16,8 +16,12 @@ export function CardDropzone({ onFile, disabled }: Props) {
   const handle = useCallback(
     (file: File | undefined) => {
       if (!file) return;
-      if (!file.name.toLowerCase().endsWith('.zip')) {
-        setError('Twin upload must be a .zip containing card.md (and optional avatar.png).');
+      const name = file.name.toLowerCase();
+      const ok = name.endsWith('.zip') || name.endsWith('.md');
+      if (!ok) {
+        setError(
+          'Twin upload must be card.md (distill output) or a .zip bundle containing it.',
+        );
         return;
       }
       setError(null);
@@ -61,16 +65,20 @@ export function CardDropzone({ onFile, disabled }: Props) {
       >
         <input
           type="file"
-          accept=".zip,application/zip"
+          accept=".zip,application/zip,.md,text/markdown"
           onChange={onChange}
           disabled={disabled}
           className="sr-only"
         />
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          {hover ? 'Drop the twin .zip here' : 'Drag a twin .zip here, or click to choose'}
+          {hover
+            ? 'Drop the twin file here'
+            : 'Drag your twin here, or click to choose'}
         </p>
         <p className="mt-1 text-xs text-neutral-500">
-          Contents: <code>card.md</code> + optional <code>avatar.png</code>
+          Either a bare <code>card.md</code> (from <code>distill extract</code>)
+          or a <code>.zip</code> bundling <code>card.md</code> +{' '}
+          <code>avatar.png</code>
         </p>
       </label>
       {error && (
