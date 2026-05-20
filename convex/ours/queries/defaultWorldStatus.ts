@@ -1,9 +1,13 @@
-import { internalQuery } from '../../_generated/server';
+import { query } from '../../_generated/server';
 
-// Internal — returns the ai-town worldStatus row marked
-// isDefault: true (created by init.ts). Used by seed actions to know
-// which world to enqueue inputs against.
-export default internalQuery({
+// Public — returns the ai-town worldStatus row marked isDefault: true
+// (created by init.ts). Read-only metadata (worldId / engineId / status);
+// safe to expose publicly. Used by:
+//   - seedTownPlayers / seedTwinsForGame actions (via ctx.runQuery)
+//   - the instructor dashboard (/instructor page; needs worldId to call
+//     other mutations)
+// Was internal in v1; promoted to public when the dashboard landed.
+export default query({
   args: {},
   handler: async (ctx) => {
     const row = await ctx.db

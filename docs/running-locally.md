@@ -185,10 +185,23 @@ leave it. Open Terminal 2 for the shell:
 # bunx convex dev — restart only if you closed it.
 # Wait for: "Convex functions ready!" before opening the browser.
 
-# Terminal 2 — Next.js shell
+# Terminal 2 — Next.js shell (the /upload + /chat + /instructor pages)
 cd shell && bun dev
 # Wait for: "✓ Ready in <Nms>" and "Local: http://localhost:3000".
+
+# Terminal 3 — ai-town 2D map view (the visible town)
+# DO NOT run `bun dev` from ai-town-fork — that tries to spin up
+# ai-town's own Convex backend (it'll prompt "create / choose project")
+# and you'd end up with TWO disconnected backends. We use the root
+# Convex deployment for both shell and ai-town. Just run vite:
+cd ai-town-fork && bunx vite
+# Or: bun run dev:frontend  (the script that skips convex backend)
+# Wait for: "Local: http://localhost:5173/ai-town".
 ```
+
+`ai-town-fork/.env.local` should already point `VITE_CONVEX_URL` at
+the root deployment URL — if it doesn't, the map will render but
+agents won't show up.
 
 Open http://localhost:3000/upload. If the page renders but the
 dropzone is unresponsive, check that `shell/.env.local` has the
