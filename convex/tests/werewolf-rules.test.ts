@@ -753,6 +753,47 @@ describe('werewolf rules — checkWin (屠边)', () => {
   });
 });
 
+describe('werewolf rules — summarizeFor (post-game memory)', () => {
+  it('wolves who survive a wolf-win get outcome=won', () => {
+    const s = initialState(nine, 42);
+    const wolves = byRole(s, 'werewolf');
+    const ended: WerewolfState = {
+      ...s,
+      winner: 'werewolves',
+      alive: [...wolves],
+    };
+    const plugin = getPlugin('werewolf')!;
+    const result = plugin.summarizeFor(ended, wolves[0]!);
+    expect(result.outcome).toBe('won');
+    expect(result.summary).toContain('werewolf');
+    expect(result.summary).toContain('赢了');
+  });
+
+  it('villagers in a wolf-win game get outcome=lost', () => {
+    const s = initialState(nine, 42);
+    const villagers = byRole(s, 'villager');
+    const ended: WerewolfState = {
+      ...s,
+      winner: 'werewolves',
+      alive: villagers.slice(0, 1),
+    };
+    const plugin = getPlugin('werewolf')!;
+    const result = plugin.summarizeFor(ended, villagers[0]!);
+    expect(result.outcome).toBe('lost');
+    expect(result.summary).toContain('输了');
+  });
+
+  it('non-wolves in a villager-win get outcome=won', () => {
+    const s = initialState(nine, 42);
+    const seer = byRole(s, 'seer')[0]!;
+    const ended: WerewolfState = { ...s, winner: 'villagers' };
+    const plugin = getPlugin('werewolf')!;
+    const result = plugin.summarizeFor(ended, seer);
+    expect(result.outcome).toBe('won');
+    expect(result.summary).toContain('seer');
+  });
+});
+
 describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
   it('seer with NO peeks gets explicit "you have not peeked" reminder', () => {
     const s = initialState(nine, 42);

@@ -57,8 +57,9 @@ export default internalMutation({
     const win = plugin.checkWin(nextState);
 
     if (win.ended) {
+      const endedState = { ...nextState, phase: 'ended', winner: win.winner };
       await ctx.db.patch(args.interactionId, {
-        state: { ...nextState, phase: 'ended', winner: win.winner },
+        state: endedState,
         turnIndex: inter.turnIndex + 1,
         phase: 'ended',
         status: 'ended',
@@ -67,6 +68,22 @@ export default internalMutation({
         lastTickAt: now,
         inflightSince: undefined,
       });
+      // Write per-participant interactionMemories so what each agent
+      // "remembers" of this game is durable. Dungeon-origin games
+      // additionally carry the originPlayerId for future ai-town write-back.
+      const originPlayerIds = inter.originPlayerIds ?? [];
+      for (let i = 0; i < inter.participants.length; i++) {
+        const twinId = inter.participants[i]!;
+        const { outcome, summary } = plugin.summarizeFor(endedState, twinId);
+        await ctx.db.insert('interactionMemories', {
+          interactionId: args.interactionId,
+          twinId,
+          originPlayerId: originPlayerIds[i],
+          outcome,
+          summary,
+          createdAt: now,
+        });
+      }
     } else {
       await ctx.db.patch(args.interactionId, {
         state: nextState,

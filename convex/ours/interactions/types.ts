@@ -60,4 +60,14 @@ export interface GamePlugin<TState> {
     kind: string,
     ctx: { aliveIds: Id<'twins'>[] },
   ): ParseResult;
+
+  // Post-game per-participant summary — pure function. Called when the
+  // game transitions to 'ended' so the framework can persist what each
+  // participant remembers (interactionMemories table for v1; ai-town
+  // memory write-back is a future task). Plugin owns the role-to-outcome
+  // mapping (only the plugin knows what 'won' means for each role).
+  summarizeFor(
+    state: TState,
+    twinId: Id<'twins'>,
+  ): { outcome: string; summary: string };
 }
