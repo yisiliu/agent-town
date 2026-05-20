@@ -131,6 +131,123 @@ describe('dungeon bridge — startDungeonGame', () => {
     ).rejects.toThrow(/unknown dungeon type/);
   });
 
+  it('teleport: saves return state + moves each player to hidden coords on entry', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, playerIds } = await seedAiTownWorld(t, 5, 'Tele');
+
+    // Snapshot pre-teleport positions
+    const before = await t.run(async (ctx) => {
+      const world = await ctx.db.get(worldId);
+      return world!.players.map((p) => ({ id: p.id, position: p.position }));
+    });
+
+    const result = await t.mutation(api.ours.mutations.startDungeonGame.default, {
+      worldId,
+      type: 'werewolf',
+      playerIds,
+      seed: 1,
+    });
+
+    // Each participant should be teleported off-screen
+    const after = await t.run(async (ctx) => {
+      const world = await ctx.db.get(worldId);
+      return world!.players;
+    });
+    for (const pid of playerIds) {
+      const player = after.find((p) => p.id === pid)!;
+      expect(player.position.x).toBe(-9999);
+      expect(player.position.y).toBe(-9999);
+      expect(player.pathfinding).toBeUndefined();
+      expect(player.activity).toBeUndefined();
+      expect(player.speed).toBe(0);
+    }
+
+    // dungeonReturnState rows should exist for each participant
+    const returns = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', result.interactionId))
+        .collect(),
+    );
+    expect(returns).toHaveLength(5);
+    // Saved positions match original pre-teleport positions
+    for (const r of returns) {
+      const originalPos = before.find((b) => b.id === r.playerId)!.position;
+      expect(r.savedPosition.x).toBe(originalPos.x);
+      expect(r.savedPosition.y).toBe(originalPos.y);
+    }
+  });
+
+  it('teleport: restores positions when the game ends', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, playerIds } = await seedAiTownWorld(t, 4, 'Restore');
+
+    const before = await t.run(async (ctx) => {
+      const world = await ctx.db.get(worldId);
+      return world!.players.map((p) => ({ id: p.id, position: p.position }));
+    });
+
+    const result = await t.mutation(api.ours.mutations.startDungeonGame.default, {
+      worldId,
+      type: 'werewolf',
+      playerIds,
+      seed: 42,
+    });
+
+    // Drive the game directly to ended by force-marking a winner state
+    // via the engine. Simplest: trigger an append that triggers win.
+    // For this test we'll just directly patch interaction state to a
+    // wolves-win configuration to short-circuit through appendInteractionTurn's
+    // restore path. Send a wolf-kill-bid that wipes all gods.
+    const inter = await t.run((ctx) => ctx.db.get(result.interactionId));
+    const state = inter!.state as { roles: Record<string, string>; alive: any[] };
+    const wolves = Object.entries(state.roles)
+      .filter(([, r]) => r === 'werewolf')
+      .map(([id]) => id);
+    // Force-end by patching the interaction to a 屠民边 state: only wolves alive.
+    await t.run((ctx) =>
+      ctx.db.patch(result.interactionId, {
+        state: { ...state, alive: wolves.map((w) => w as any) },
+      }),
+    );
+    // Now append a no-op system turn from a wolf to trigger the end check.
+    const wolfTwin = wolves[0] as any;
+    await t.mutation(api.ours.mutations.appendInteractionTurn.default, {
+      interactionId: result.interactionId,
+      expectedTurnIndex: inter!.turnIndex,
+      phase: 'night-werewolf',
+      kind: 'wolf-kill-bid',
+      actorTwinId: wolfTwin,
+      text: 'wolves done',
+      data: { target: wolves[1] ?? wolves[0] },
+      visibility: [wolfTwin],
+    });
+
+    // Game should now be ended; positions should be restored
+    const final = await t.run((ctx) => ctx.db.get(result.interactionId));
+    expect(final!.status).toBe('ended');
+
+    const after = await t.run(async (ctx) => {
+      const world = await ctx.db.get(worldId);
+      return world!.players;
+    });
+    for (const pid of playerIds) {
+      const player = after.find((p) => p.id === pid)!;
+      const orig = before.find((b) => b.id === pid)!;
+      expect(player.position.x).toBe(orig.position.x);
+      expect(player.position.y).toBe(orig.position.y);
+    }
+
+    // Return-state rows should be cleaned up
+    const returns = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', result.interactionId))
+        .collect(),
+    );
+    expect(returns).toHaveLength(0);
+  });
+
   it('the synthesized twin card includes the ai-town agent identity', async () => {
     const t = convexTest(schema, modules);
     const { worldId, playerIds } = await seedAiTownWorld(t, 4, 'CardCheck');
