@@ -212,7 +212,7 @@ describe('dungeon bridge — startDungeonGame', () => {
     );
     // Now append a no-op system turn from a wolf to trigger the end check.
     const wolfTwin = wolves[0] as any;
-    await t.mutation(api.ours.mutations.appendInteractionTurn.default, {
+    await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
       interactionId: result.interactionId,
       expectedTurnIndex: inter!.turnIndex,
       phase: 'night-werewolf',
