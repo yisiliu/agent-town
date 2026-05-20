@@ -18,6 +18,7 @@ const OUR_TABLES = [
   'interactionTurns',
   'interactionMemories',
   'dungeonReturnState',
+  'townEventState',
   'noticeboard',
   'digests',
   'retractions',

@@ -6,6 +6,7 @@ import { interactions } from './interactions';
 import { interactionTurns } from './interactionTurns';
 import { interactionMemories } from './interactionMemories';
 import { dungeonReturnState } from './dungeonReturnState';
+import { townEventState } from './townEventState';
 import { noticeboard } from './noticeboard';
 import { digests } from './digests';
 import { retractions } from './retractions';
@@ -33,6 +34,7 @@ export const ourTables = {
   interactionTurns,
   interactionMemories,
   dungeonReturnState,
+  townEventState,
   noticeboard,
   digests,
   retractions,
