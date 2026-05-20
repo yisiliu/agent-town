@@ -50,10 +50,10 @@ export default mutation({
       twinIds.push(twinId);
     }
 
-    // 2. Run the plugin's initialState directly so we can tag the
-    //    interaction with dungeon metadata. We mirror startInteraction's
-    //    insert here rather than calling it through ctx.runMutation — that
-    //    way the dungeon-origin fields are part of the same transaction.
+    // 2. Run the plugin's initialState and insert the interaction row.
+    //    We mirror startInteraction's insert here rather than calling it
+    //    through ctx.runMutation — that way the dungeon-origin fields are
+    //    part of the same transaction as twin creation + teleport.
     const seed = args.seed ?? Math.floor(Math.random() * 2 ** 31);
     const state = plugin.initialState(twinIds, seed) as { phase: string };
     const now = Date.now();
@@ -71,6 +71,45 @@ export default mutation({
       worldId: args.worldId,
       originPlayerIds: args.playerIds,
     });
+
+    // 3. Teleport each player off-screen + save their return state.
+    //    We move them to HIDDEN_COORD (well outside any reasonable map)
+    //    so the frontend renderer effectively can't show them, and we
+    //    clear pathfinding + activity so ai-town's engine has nothing to
+    //    tick for them. They remain in world.players[] so the bridge
+    //    knows where to put them back when the game ends.
+    const world = await ctx.db.get(args.worldId);
+    if (!world) {
+      throw new Error(`startDungeonGame: world ${args.worldId} not found`);
+    }
+    const players = world.players.map((p) => ({ ...p }));
+    for (const pid of args.playerIds) {
+      const idx = players.findIndex((p) => p.id === pid);
+      if (idx === -1) {
+        throw new Error(
+          `startDungeonGame: player ${pid} not in world.players[]`,
+        );
+      }
+      const player = players[idx]!;
+      await ctx.db.insert('dungeonReturnState', {
+        interactionId,
+        worldId: args.worldId,
+        playerId: pid,
+        savedPosition: { x: player.position.x, y: player.position.y },
+        savedFacing: { dx: player.facing.dx, dy: player.facing.dy },
+        enteredAt: now,
+      });
+      // Hidden coord — outside any reasonable map; the renderer's
+      // viewport never sees it.
+      players[idx] = {
+        ...player,
+        position: { x: -9999, y: -9999 },
+        pathfinding: undefined,
+        activity: undefined,
+        speed: 0,
+      };
+    }
+    await ctx.db.patch(args.worldId, { players });
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     return { interactionId, participants: twinIds };
