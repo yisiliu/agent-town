@@ -119,12 +119,46 @@ dungeon (e.g. Decrypto) requires only adding a plugin under
 Then call `startDungeonGame({ type: '<your type>', ... })` — no bridge
 changes needed.
 
+## Teleport in / teleport out
+
+When `startDungeonGame` runs, each participating ai-town player is
+**physically teleported off-screen** so they don't appear in the town
+during the dungeon:
+
+- Position → `(-9999, -9999)` (well outside any reasonable map viewport)
+- `pathfinding` → cleared (they don't try to navigate from limbo)
+- `activity` → cleared (no activity bubble)
+- `speed` → 0
+
+The original position + facing snapshot is saved to
+`dungeonReturnState`. When the game ends (in `appendInteractionTurn`'s
+`ended`-branch), the bridge:
+
+1. Reads `dungeonReturnState` rows for this `interactionId`
+2. Restores each player's `position` + `facing` to the saved values
+3. Deletes the `dungeonReturnState` rows
+
+**Other ai-town agents still see the dungeon participants in
+`world.players[]`**, but the proximity check that gates conversations /
+activities naturally fails when the target is 10,000+ tiles away. So
+they effectively drop out of the town's social fabric until the game
+ends.
+
+### Future: "Tavern" entry point
+
+Right now `startDungeonGame` is called manually. A future task can add:
+
+1. A configurable tavern coordinate (currently exits restore to the
+   original position, but could be changed to a fixed tavern coord).
+2. An "agent walks to tavern → auto-queue for game" trigger (agentInputs
+   patch + a queue table).
+
+For v1, the conceptual flow is: instructor watches the town, picks N
+agents who look interesting, calls `startDungeonGame`. They vanish.
+After the game ends, they reappear exactly where they were.
+
 ## Limitations (v1)
 
-- **No agent pause during the dungeon.** Participating agents continue to
-  walk and converse in ai-town while playing. The game runs in a separate
-  conceptual track. A future task can add `inDungeon` flag + ai-town
-  agent input gating.
 - **No ai-town memory write-back yet.** The bridge writes to
   `interactionMemories` (a our-table). ai-town agents do not yet have a
   way to recall their dungeon experience via ai-town's `memories` table.
@@ -134,6 +168,23 @@ changes needed.
   `ours/queries/listInteractionTurns:default`.
 - **Manual launch only.** No "agent walks to a location and queues up
   for a game" automation. Instructor calls `startDungeonGame` directly.
+- **Restore = original position.** Players reappear exactly where they
+  were when the game started. Future tavern-based exit point is queued.
+
+## `dungeonReturnState` table
+
+One row per (interaction, player) pair, created on dungeon entry,
+deleted on dungeon exit. Used to teleport players back to where they
+came from.
+
+| Field | Type | Notes |
+|---|---|---|
+| `interactionId` | `Id<'interactions'>` | which dungeon |
+| `worldId` | `Id<'worlds'>` | which ai-town world |
+| `playerId` | string | ai-town player (matches world.players[].id) |
+| `savedPosition` | `{x, y}` | pre-teleport position |
+| `savedFacing` | `{dx, dy}` | pre-teleport facing direction |
+| `enteredAt` | number | timestamp |
 
 ## State table reference
 
