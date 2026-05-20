@@ -19,6 +19,10 @@ const clearEventRef = 'ours/mutations/clearTownEvent:default' as any;
 const freezeRef = 'ours/mutations/devForceFreezeWorld:default' as any;
 const resumeRef = 'ours/mutations/devForceResumeWorld:default' as any;
 const cancelInteractionRef = 'ours/mutations/cancelInteraction:default' as any;
+// ai-town engine controls (testing.ts exports these as public mutations)
+const aiTownResumeRef = 'testing:resume' as any;
+const aiTownStopRef = 'testing:stop' as any;
+const aiTownKickRef = 'testing:kick' as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 type TownAgent = {
@@ -80,19 +84,21 @@ function WorldSection() {
     | undefined;
   const freeze = useMutation(freezeRef);
   const resume = useMutation(resumeRef);
+  const aiTownResume = useMutation(aiTownResumeRef);
+  const aiTownStop = useMutation(aiTownStopRef);
+  const aiTownKick = useMutation(aiTownKickRef);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isFrozen = fullStatus?.state === 'frozen';
+  const engineStopped =
+    defaultWorld?.status === 'stoppedByDeveloper' ||
+    defaultWorld?.status === 'inactive';
+  const engineRunning = defaultWorld?.status === 'running';
 
-  const onFreeze = async () => {
+  const wrap = async (fn: () => Promise<unknown>) => {
     setPending(true); setError(null);
-    try { await freeze({}); } catch (e) { setError((e as Error).message); }
-    finally { setPending(false); }
-  };
-  const onResume = async () => {
-    setPending(true); setError(null);
-    try { await resume({}); } catch (e) { setError((e as Error).message); }
+    try { await fn(); } catch (e) { setError((e as Error).message); }
     finally { setPending(false); }
   };
 
@@ -113,31 +119,73 @@ function WorldSection() {
               </code>
             </div>
             <div>
-              <span className="text-neutral-500">engine status:</span>{' '}
-              <code>{defaultWorld.status}</code>
+              <span className="text-neutral-500">ai-town engine:</span>{' '}
+              <code
+                className={
+                  engineRunning
+                    ? 'text-green-600 font-semibold'
+                    : engineStopped
+                      ? 'text-red-600 font-semibold'
+                      : 'text-amber-600'
+                }
+              >
+                {defaultWorld.status}
+              </code>
+              {engineStopped && (
+                <span className="ml-2 text-xs text-red-600">
+                  ⚠ agents won't move while stopped — click "Start engine"
+                </span>
+              )}
             </div>
             <div>
-              <span className="text-neutral-500">town state:</span>{' '}
+              <span className="text-neutral-500">our session state:</span>{' '}
               <code className={isFrozen ? 'text-blue-600' : 'text-green-600'}>
                 {fullStatus?.state ?? 'unknown'}
               </code>
+              <span className="ml-2 text-xs text-neutral-500">
+                (class-hours schedule — separate from ai-town engine)
+              </span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={onFreeze}
-              disabled={pending || isFrozen}
-              className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+              onClick={() => wrap(() => aiTownResume({}))}
+              disabled={pending || engineRunning}
+              className="rounded bg-emerald-600 px-3 py-1 text-sm text-white disabled:opacity-50"
             >
-              Freeze
+              Start engine
             </button>
             <button
-              onClick={onResume}
-              disabled={pending || !isFrozen}
-              className="rounded bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+              onClick={() => wrap(() => aiTownStop({}))}
+              disabled={pending || engineStopped}
+              className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
             >
-              Resume
+              Stop engine
             </button>
+            <button
+              onClick={() => wrap(() => aiTownKick({}))}
+              disabled={pending}
+              className="rounded bg-yellow-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+              title="Force a tick — useful when the engine is alive but seems idle"
+            >
+              Kick
+            </button>
+            <div className="ml-4 border-l pl-4 dark:border-neutral-700">
+              <button
+                onClick={() => wrap(() => freeze({}))}
+                disabled={pending || isFrozen}
+                className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+              >
+                Freeze (session)
+              </button>
+              <button
+                onClick={() => wrap(() => resume({}))}
+                disabled={pending || !isFrozen}
+                className="ml-2 rounded bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+              >
+                Resume (session)
+              </button>
+            </div>
           </div>
           {error && <p className="text-red-600">{error}</p>}
         </>
