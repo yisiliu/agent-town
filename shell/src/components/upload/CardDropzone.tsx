@@ -76,9 +76,8 @@ export function CardDropzone({ onFile, disabled }: Props) {
             : '把数字分身拖到这里，或点击选择文件'}
         </p>
         <p className="mt-1 text-xs text-neutral-500">
-          可以是 <code>card.md</code>（<code>distill extract</code> 生成）
-          ，也可以是 包含 <code>card.md</code> + <code>avatar.png</code> 的{' '}
-          <code>.zip</code> 压缩包
+          可以是 <code>card.md</code>，也可以是装着{' '}
+          <code>card.md</code> + <code>avatar.png</code> 的 <code>.zip</code>。
         </p>
       </label>
       {error && (

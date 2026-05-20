@@ -61,7 +61,7 @@ export default function InstructorDashboard() {
       <header className="border-b pb-4 dark:border-neutral-700">
         <h1 className="text-2xl font-bold">教师控制台</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          功能优先，样式其次 · v1
+          能用就行，样式以后再说 · v1
         </p>
       </header>
 
@@ -107,7 +107,7 @@ function WorldSection() {
       <h2 className="text-lg font-semibold">小镇状态</h2>
       {defaultWorld === undefined && <p>加载中…</p>}
       {defaultWorld === null && (
-        <p className="text-amber-600">没有默认世界。请先初始化 ai-town。</p>
+        <p className="text-amber-600">还没有默认世界，先初始化 ai-town。</p>
       )}
       {defaultWorld && (
         <>
@@ -235,14 +235,14 @@ function TownEventSection() {
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
       <h2 className="text-lg font-semibold">小镇事件（全局开关）</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        往所有 AI 角色的身份信息里前置一段背景描述。约 30 秒后下一轮对话就会反映出来。
+        在所有 AI 的人设前面加一段背景。大概 30 秒后，下一轮对话就会带上。
       </p>
       {event && (
         <div className="rounded bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
           <div className="font-semibold">当前事件：</div>
           <div className="italic">"{event.eventText}"</div>
           <div className="mt-1 text-neutral-500">
-            影响 {event.agentsAffected} 位 AI 角色 · 自 {new Date(event.setAt).toLocaleTimeString()} 起
+            {new Date(event.setAt).toLocaleTimeString()} 设的 · 影响 {event.agentsAffected} 位 AI
           </div>
         </div>
       )}
@@ -251,7 +251,7 @@ function TownEventSection() {
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="例：一场暴风雨刚刚袭击了小镇 / 一位陌生人来到了小镇"
+          placeholder="例：下雨了 / 来了个陌生人 / 学校着火了"
           className="flex-1 rounded border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
         />
         <button
@@ -354,7 +354,7 @@ function TwinsSection() {
                     disabled={pendingId === t._id || t.state !== 'active' || !t.hasCard}
                     className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-50"
                   >
-                    {pendingId === t._id ? '...' : '送入小镇'}
+                    {pendingId === t._id ? '...' : '放进小镇'}
                   </button>
                 </td>
               </tr>
@@ -532,7 +532,7 @@ function DungeonsSection() {
         )}
         <div className="space-y-1">
           <p className="text-xs text-neutral-500">
-            小镇里可选的 AI 角色（{availableAgents.length} 位）。点击切换选中状态。
+            小镇里能选的 AI（{availableAgents.length} 位）。点一下加进来，再点取消。
           </p>
           <div className="flex flex-wrap gap-1">
             {availableAgents.map((a) => (
@@ -551,13 +551,13 @@ function DungeonsSection() {
             ))}
             {availableAgents.length === 0 && (
               <p className="text-xs text-amber-600">
-                小镇里还没有 AI 角色。先把数字分身「送入小镇」。
+                小镇里还没有 AI 角色。先把数字分身「放进小镇」。
               </p>
             )}
           </div>
           {inDungeonAgents.length > 0 && (
             <p className="text-xs text-neutral-500">
-              已进入副本，暂时离开小镇：{inDungeonAgents.map((a) => a.name).join('、')}
+              副本里的（暂时不在镇上）：{inDungeonAgents.map((a) => a.name).join('、')}
             </p>
           )}
         </div>

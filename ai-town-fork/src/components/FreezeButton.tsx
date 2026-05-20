@@ -26,7 +26,7 @@ export default function FreezeButton() {
       <Button
         onClick={flipSwitch}
         className="hidden lg:block"
-        title="冻结世界后，AI 角色需要几秒钟才能完成当前动作并停下。"
+        title="冻结后还要几秒，AI 才会停下手头的事。"
         imgUrl="/assets/star.svg"
       >
         {frozen ? '解冻' : '冻结'}

@@ -64,7 +64,7 @@ export default function UploadPage() {
       <header>
         <h1 className="text-2xl font-medium tracking-tight">上传你的数字分身</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          把 <code>distill build</code> 生成的卡片拖到下方。服务器会校验格式，扫描隐私信息（PII）和提示词注入，通过后给你三个访问码。
+          拖一份 <code>distill build</code> 出来的卡片进来。我们会检查格式、扫一遍隐私信息和注入，没问题就发你三个码。
         </p>
       </header>
 
@@ -84,14 +84,14 @@ export default function UploadPage() {
 
       {token && result?.state === 'pending' && (
         <p className="text-sm text-neutral-600">
-          扫描进行中，扫描完成后此页面会自动更新。
+          正在扫描，扫完页面会自动刷新。
         </p>
       )}
 
       {token && result?.state === 'rejected' && (
         <div className="rounded border border-red-300 bg-red-50 p-4 text-sm dark:border-red-700 dark:bg-red-950/30">
           <p className="font-medium text-red-700 dark:text-red-200">
-            这份数字分身暂时没通过审核。扫描发现以下问题：
+            这份分身没过审。问题在这：
           </p>
           <ul className="mt-2 list-disc pl-5 text-red-700 dark:text-red-200">
             {result.errors?.map((e, i) => (
@@ -99,7 +99,7 @@ export default function UploadPage() {
             ))}
           </ul>
           <p className="mt-3 text-xs text-red-600 dark:text-red-300">
-            修改卡片，删除被标记的内容后重新上传，或者联系老师人工审核。
+            把标红的地方删掉再传一次，或者找老师手动放行。
           </p>
         </div>
       )}
