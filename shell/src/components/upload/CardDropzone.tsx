@@ -20,7 +20,7 @@ export function CardDropzone({ onFile, disabled }: Props) {
       const ok = name.endsWith('.zip') || name.endsWith('.md');
       if (!ok) {
         setError(
-          'Twin upload must be card.md (distill output) or a .zip bundle containing it.',
+          '只能上传 card.md（distill 生成的文件）或包含 card.md 的 .zip 包。',
         );
         return;
       }
@@ -72,13 +72,13 @@ export function CardDropzone({ onFile, disabled }: Props) {
         />
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
           {hover
-            ? 'Drop the twin file here'
-            : 'Drag your twin here, or click to choose'}
+            ? '把文件放到这里'
+            : '把数字分身拖到这里，或点击选择文件'}
         </p>
         <p className="mt-1 text-xs text-neutral-500">
-          Either a bare <code>card.md</code> (from <code>distill extract</code>)
-          or a <code>.zip</code> bundling <code>card.md</code> +{' '}
-          <code>avatar.png</code>
+          可以是 <code>card.md</code>（<code>distill extract</code> 生成）
+          ，也可以是 包含 <code>card.md</code> + <code>avatar.png</code> 的{' '}
+          <code>.zip</code> 压缩包
         </p>
       </label>
       {error && (

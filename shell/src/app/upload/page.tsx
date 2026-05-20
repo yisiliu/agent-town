@@ -64,7 +64,7 @@ export default function UploadPage() {
       <header>
         <h1 className="text-2xl font-medium tracking-tight">上传你的数字分身</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          把 <code>distill build</code> 打包出来的卡片拖到下方。服务器会校验格式、扫描个人隐私（PII）和提示词注入，然后发给你访问码。
+          把 <code>distill build</code> 生成的卡片拖到下方。服务器会校验格式，扫描隐私信息（PII）和提示词注入，通过后给你三个访问码。
         </p>
       </header>
 
@@ -91,7 +91,7 @@ export default function UploadPage() {
       {token && result?.state === 'rejected' && (
         <div className="rounded border border-red-300 bg-red-50 p-4 text-sm dark:border-red-700 dark:bg-red-950/30">
           <p className="font-medium text-red-700 dark:text-red-200">
-            数字分身被拒绝。扫描发现的问题：
+            这份数字分身暂时没通过审核。扫描发现以下问题：
           </p>
           <ul className="mt-2 list-disc pl-5 text-red-700 dark:text-red-200">
             {result.errors?.map((e, i) => (
@@ -122,7 +122,7 @@ export default function UploadPage() {
             onClick={acknowledge}
             className="mt-4 rounded bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800"
           >
-            我已经妥善保存了这三个码
+            我已经记下这三个访问码
           </button>
         </div>
       )}

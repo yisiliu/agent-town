@@ -56,7 +56,7 @@ export default function PlayerDetails({
   if (!playerId) {
     return (
       <div className="h-full text-xl flex text-center items-center p-4">
-        Click on an agent on the map to see chat history.
+        点击地图上的 AI 角色，查看 TA 的对话历史。
       </div>
     );
   }

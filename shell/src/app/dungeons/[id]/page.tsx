@@ -75,6 +75,32 @@ const KIND_BADGE: Record<string, string> = {
   abstain: 'bg-neutral-200 text-neutral-500',
 };
 
+const KIND_LABEL: Record<string, string> = {
+  speak: '发言',
+  vote: '投票',
+  'wolf-kill-bid': '狼人刀人',
+  peek: '查验',
+  'witch-act': '用药',
+  'last-words': '遗言',
+  'hunter-shoot': '猎人开枪',
+  'sheriff-claim': '上警',
+  'sheriff-vote': '警长投票',
+  'sheriff-pk-speech': '警长PK发言',
+  'sheriff-pk-vote': '警长PK投票',
+  'sheriff-pull-vote': '警长归票',
+  'self-explode': '自爆',
+  system: '系统',
+  abstain: '弃权',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  in_progress: '进行中',
+  ended: '已结束',
+  cancelled: '已取消',
+  pending: '等待中',
+  lobby: '准备中',
+};
+
 export default function DungeonSpectatorPage({
   params,
 }: {
@@ -136,7 +162,7 @@ export default function DungeonSpectatorPage({
                     : 'text-amber-600'
               }
             >
-              {interaction.status === 'in_progress' ? '进行中' : interaction.status === 'ended' ? '已结束' : interaction.status}
+              {STATUS_LABEL[interaction.status] ?? interaction.status}
             </span>
           </Pill>
           <Pill>阶段：{PHASE_LABEL[interaction.phase] ?? interaction.phase}</Pill>
@@ -205,7 +231,7 @@ export default function DungeonSpectatorPage({
                     KIND_BADGE[t.kind] ?? 'bg-neutral-100 text-neutral-700'
                   }`}
                 >
-                  {t.kind}
+                  {KIND_LABEL[t.kind] ?? t.kind}
                 </span>
                 <span className="font-semibold">{actor}</span>
                 {tgtName && (

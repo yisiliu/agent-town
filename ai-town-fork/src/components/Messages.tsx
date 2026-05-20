@@ -99,7 +99,7 @@ export function Messages({
         membershipNodes.push({
           node: (
             <div key={`joined-${playerId}`} className="leading-tight mb-6">
-              <p className="text-brown-700 text-center">{playerName} joined the conversation.</p>
+              <p className="text-brown-700 text-center">{playerName} 加入了对话。</p>
             </div>
           ),
           time: started,
@@ -114,7 +114,7 @@ export function Messages({
       membershipNodes.push({
         node: (
           <div key={`joined-${playerId}`} className="leading-tight mb-6">
-            <p className="text-brown-700 text-center">{playerName} joined the conversation.</p>
+            <p className="text-brown-700 text-center">{playerName} 加入了对话。</p>
           </div>
         ),
         time: started,
@@ -123,7 +123,7 @@ export function Messages({
       membershipNodes.push({
         node: (
           <div key={`left-${playerId}`} className="leading-tight mb-6">
-            <p className="text-brown-700 text-center">{playerName} left the conversation.</p>
+            <p className="text-brown-700 text-center">{playerName} 离开了对话。</p>
           </div>
         ),
         // Always sort all "left" messages after the last message.
@@ -148,7 +148,7 @@ export function Messages({
             </div>
             <div className={clsx('bubble')}>
               <p className="bg-white -mx-3 -my-1">
-                <i>typing...</i>
+                <i>正在输入…</i>
               </p>
             </div>
           </div>

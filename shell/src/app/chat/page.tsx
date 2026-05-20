@@ -97,7 +97,7 @@ export default function ChatPage() {
       <header>
         <h1 className="text-2xl font-medium tracking-tight">和你的数字分身聊天</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          一对一私聊。使用你上传的 card.md 作为人设；聊天记录只保留在当前页面。
+          一对一私聊。AI 会用你上传的人设卡（card.md）扮演你；聊天记录只保留在当前页面，刷新即丢。
         </p>
       </header>
 
@@ -145,7 +145,7 @@ export default function ChatPage() {
                 : auth.reason === 'bad_code'
                   ? '控制码不正确。'
                   : auth.reason === 'twin_not_active'
-                    ? '数字分身存在但不处于激活状态。'
+                    ? '这个数字分身还没激活。'
                     : `验证失败：${auth.reason}`}
             </p>
           )}

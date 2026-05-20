@@ -33,11 +33,11 @@ export default function Home() {
         <div className="font-body">
           <h1 className="text-center text-6xl font-bold font-display game-title">帮助</h1>
           <p>
-            欢迎来到 AI 小镇。你既可以匿名<i>围观</i>，也可以登录后<i>互动</i>。
+            欢迎来到 AI 小镇。你既可以匿名<i>观看</i>，也可以登录后<i>互动</i>。
           </p>
-          <h2 className="text-4xl mt-4">围观</h2>
+          <h2 className="text-4xl mt-4">观看</h2>
           <p>
-            按住鼠标拖动地图，滚轮放大或缩小。点击任意角色，即可查看 ta 的对话历史。
+            按住鼠标拖动地图，滚轮放大或缩小。点击任意角色，即可查看 TA 的对话历史。
           </p>
           <h2 className="text-4xl mt-4">互动</h2>
           <p>
@@ -46,10 +46,10 @@ export default function Home() {
           <p className="text-2xl mt-2">操作方式：</p>
           <p className="mt-4">点击地图任意位置即可移动。</p>
           <p className="mt-4">
-            想和某个 AI 角色聊天，点击 ta，然后点「发起对话」，ta 会朝你走过来。等 ta 走到你身边，对话就开始了，你们可以互相说话。任何时候你都可以关闭对话面板或者走开来结束对话。AI 角色也可能主动邀请你聊天——这时在消息面板里你会看到「接受」按钮。
+            想和某个 AI 角色聊天，点击 TA，然后点「发起对话」，TA 会朝你走过来。等 TA 走到你身边，对话就开始了，你们可以互相说话。任何时候你都可以关闭对话面板或者走开来结束对话。AI 角色也可能主动来邀请你——这时右侧面板会出现「接受」按钮。
           </p>
           <p className="mt-4">
-            AI 小镇同时最多支持 {MAX_HUMAN_PLAYERS} 个真人玩家。如果你超过五分钟没有动作，会被自动移出模拟。
+            AI 小镇同时最多支持 {MAX_HUMAN_PLAYERS} 个真人玩家。挂机超过五分钟会被自动请出小镇。
           </p>
         </div>
       </ReactModal>
@@ -69,7 +69,7 @@ export default function Home() {
         </h1>
 
         <div className="max-w-xs md:max-w-xl lg:max-w-none mx-auto my-4 text-center text-base sm:text-xl md:text-2xl text-white leading-tight shadow-solid">
-          一个由 AI 角色生活、闲谈、社交的虚拟小镇。
+          一个 AI 角色在这里生活、闲聊、社交的虚拟小镇。
           {/* <Unauthenticated>
             <div className="my-1.5 sm:my-0" />
             Log in to join the town

@@ -61,7 +61,7 @@ export default function InstructorDashboard() {
       <header className="border-b pb-4 dark:border-neutral-700">
         <h1 className="text-2xl font-bold">教师控制台</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          功能优先，外观第二。v1
+          功能优先，样式其次 · v1
         </p>
       </header>
 
@@ -233,7 +233,7 @@ function TownEventSection() {
 
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <h2 className="text-lg font-semibold">小镇事件（旋钮）</h2>
+      <h2 className="text-lg font-semibold">小镇事件（全局开关）</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
         往所有 AI 角色的身份信息里前置一段背景描述。约 30 秒后下一轮对话就会反映出来。
       </p>
@@ -557,7 +557,7 @@ function DungeonsSection() {
           </div>
           {inDungeonAgents.length > 0 && (
             <p className="text-xs text-neutral-500">
-              正在副本里（已被传送走）：{inDungeonAgents.map((a) => a.name).join('、')}
+              已进入副本，暂时离开小镇：{inDungeonAgents.map((a) => a.name).join('、')}
             </p>
           )}
         </div>
