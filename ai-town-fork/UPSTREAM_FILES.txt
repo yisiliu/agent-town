@@ -145,24 +145,24 @@
 ./public/assets/tilemap.json
 ./public/favicon.ico
 ./README.md
-./src/App.tsx
+./src/App.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/buttons/Button.tsx
-./src/components/buttons/InteractButton.tsx
+./src/components/buttons/InteractButton.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/buttons/LoginButton.tsx
-./src/components/buttons/MusicButton.tsx
+./src/components/buttons/MusicButton.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/Character.tsx
 ./src/components/ConvexClientProvider.tsx
 ./src/components/DebugPath.tsx
 ./src/components/DebugTimeManager.tsx
-./src/components/FreezeButton.tsx
+./src/components/FreezeButton.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/Game.tsx
-./src/components/MessageInput.tsx
-./src/components/Messages.tsx
+./src/components/MessageInput.tsx  # EXEMPT: zh-CN translation (no logic changes)
+./src/components/Messages.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/PixiGame.tsx
 ./src/components/PixiStaticMap.tsx
 ./src/components/PixiViewport.tsx
 ./src/components/Player.tsx
-./src/components/PlayerDetails.tsx
+./src/components/PlayerDetails.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/PositionIndicator.tsx
 ./src/components/PoweredByConvex.tsx
 ./src/editor/campfire.json
