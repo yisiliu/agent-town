@@ -10,6 +10,7 @@ const activeInteractionsRef = 'ours/queries/instructorActiveInteractions:default
 const defaultWorldStatusRef = 'ours/queries/defaultWorldStatus:default' as any;
 const worldStatusRef = 'ours/queries/worldStatus:default' as any;
 const townEventRef = 'ours/queries/getTownEvent:default' as any;
+const townAgentsRef = 'ours/queries/instructorTownAgents:default' as any;
 
 const promoteRef = 'ours/mutations/promoteTwinToAgent:default' as any;
 const startDungeonRef = 'ours/mutations/startDungeonGame:default' as any;
@@ -19,6 +20,13 @@ const freezeRef = 'ours/mutations/devForceFreezeWorld:default' as any;
 const resumeRef = 'ours/mutations/devForceResumeWorld:default' as any;
 const cancelInteractionRef = 'ours/mutations/cancelInteraction:default' as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+type TownAgent = {
+  playerId: string;
+  name: string;
+  position: { x: number; y: number };
+  inDungeon: boolean;
+};
 
 type Twin = {
   _id: string;
@@ -307,11 +315,14 @@ function TwinsSection() {
 
 function DungeonsSection() {
   const interactions = useQuery(activeInteractionsRef, {}) as Interaction[] | undefined;
-  const twins = useQuery(twinListRef, { limit: 50, activeOnly: true }) as Twin[] | undefined;
   const defaultWorld = useQuery(defaultWorldStatusRef, {}) as
     | { worldId: string }
     | null
     | undefined;
+  const townAgents = useQuery(
+    townAgentsRef,
+    defaultWorld ? { worldId: defaultWorld.worldId } : 'skip',
+  ) as TownAgent[] | undefined;
   const startDungeon = useMutation(startDungeonRef);
   const cancel = useMutation(cancelInteractionRef);
 
@@ -320,29 +331,31 @@ function DungeonsSection() {
   const [gameType, setGameType] = useState('werewolf');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastStarted, setLastStarted] = useState<string | null>(null);
 
-  const toggle = (twinId: string) => {
+  const toggle = (playerId: string) => {
     const next = new Set(selected);
-    if (next.has(twinId)) next.delete(twinId);
-    else next.add(twinId);
+    if (next.has(playerId)) next.delete(playerId);
+    else next.add(playerId);
     setSelected(next);
   };
 
   const onStartDungeon = async () => {
     if (!defaultWorld) { setError('No default world'); return; }
-    // Selected twinIds need to map to ai-town playerIds — we don't have
-    // a public twin→playerId lookup yet. For v1, the dashboard supports
-    // launching with SYNTHETIC playerIds: the bridge will find/create
-    // a twin per playerId. Real student twins need to be promoted first
-    // (button in twins table) and then their playerId looked up.
-    //
-    // To launch with the dashboard right now, paste playerIds in the seed
-    // field as a comma-separated list. This is hacky but works for v1.
-    setError(
-      'Dashboard dungeon launch needs ai-town playerIds (not twinIds). ' +
-      'Use `bunx convex data worlds` to find playerIds, then run startDungeonGame from CLI. ' +
-      'TODO: wire promote-to-agent return value into a twin→player map.'
-    );
+    setPending(true); setError(null); setLastStarted(null);
+    try {
+      const args: Record<string, unknown> = {
+        worldId: defaultWorld.worldId,
+        type: gameType,
+        playerIds: Array.from(selected),
+      };
+      const trimmedSeed = seed.trim();
+      if (trimmedSeed) args.seed = parseInt(trimmedSeed, 10);
+      const result = (await startDungeon(args)) as { interactionId: string };
+      setLastStarted(result.interactionId);
+      setSelected(new Set());
+    } catch (e) { setError((e as Error).message); }
+    finally { setPending(false); }
   };
 
   const onCancel = async (id: string) => {
@@ -351,6 +364,9 @@ function DungeonsSection() {
     catch (e) { setError((e as Error).message); }
     finally { setPending(false); }
   };
+
+  const availableAgents = (townAgents ?? []).filter((a) => !a.inDungeon);
+  const inDungeonAgents = (townAgents ?? []).filter((a) => a.inDungeon);
 
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
@@ -418,17 +434,9 @@ function DungeonsSection() {
 
       <div className="space-y-2 border-t pt-3 dark:border-neutral-800">
         <h3 className="text-sm font-semibold text-neutral-500">
-          Start new dungeon
+          Start new dungeon — pick agents from the town
         </h3>
-        <p className="text-sm text-amber-600">
-          ⚠ v1 limitation: this UI launches with twinIds, but startDungeonGame
-          requires ai-town playerIds. For now, use CLI:
-          <code className="ml-1 rounded bg-neutral-100 px-1 dark:bg-neutral-800">
-            bunx convex run ours/mutations/startDungeonGame:default '{`{...}`}'
-          </code>
-          . See <code>docs/dungeons.md</code>.
-        </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={gameType}
@@ -445,33 +453,58 @@ function DungeonsSection() {
           />
           <button
             onClick={onStartDungeon}
-            disabled={pending || selected.size < 4}
+            disabled={pending || selected.size < 2}
             className="rounded bg-purple-600 px-3 py-1 text-sm text-white disabled:opacity-50"
           >
-            Start ({selected.size} selected)
+            {pending ? '…' : `Start ${gameType} (${selected.size})`}
           </button>
+          {selected.size > 0 && (
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-neutral-500 underline"
+            >
+              clear
+            </button>
+          )}
         </div>
+        {lastStarted && (
+          <p className="text-sm text-green-600">
+            ✓ Started! <a href={`/dungeons/${lastStarted}`} className="underline">Watch →</a>
+          </p>
+        )}
         <div className="space-y-1">
           <p className="text-xs text-neutral-500">
-            Select active twins to include (≥4 for werewolf):
+            Available agents in town ({availableAgents.length}). Click to toggle selection.
           </p>
           <div className="flex flex-wrap gap-1">
-            {(twins ?? []).map((t) => (
+            {availableAgents.map((a) => (
               <button
-                key={t._id}
-                onClick={() => toggle(t._id)}
+                key={a.playerId}
+                onClick={() => toggle(a.playerId)}
+                title={`${a.playerId} @ (${a.position.x},${a.position.y})`}
                 className={`rounded px-2 py-0.5 text-xs ${
-                  selected.has(t._id)
+                  selected.has(a.playerId)
                     ? 'bg-purple-600 text-white'
                     : 'bg-neutral-100 dark:bg-neutral-800'
                 }`}
               >
-                {t.pseudonym}
+                {a.name}
               </button>
             ))}
+            {availableAgents.length === 0 && (
+              <p className="text-xs text-amber-600">
+                No agents in town yet. Promote some twins to the town first.
+              </p>
+            )}
           </div>
+          {inDungeonAgents.length > 0 && (
+            <p className="text-xs text-neutral-500">
+              Currently in a dungeon (teleported away):{' '}
+              {inDungeonAgents.map((a) => a.name).join(', ')}
+            </p>
+          )}
         </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>}
       </div>
     </section>
   );
