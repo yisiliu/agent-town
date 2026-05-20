@@ -95,17 +95,16 @@ export default function ChatPage() {
   return (
     <main className="mx-auto flex h-screen max-w-3xl flex-col gap-4 px-6 py-8">
       <header>
-        <h1 className="text-2xl font-medium tracking-tight">Chat with twin</h1>
+        <h1 className="text-2xl font-medium tracking-tight">和你的数字分身聊天</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Private 1-on-1 conversation with your twin. Uses your card.md as the
-          persona; history lives in this tab only.
+          一对一私聊。使用你上传的 card.md 作为人设；聊天记录只保留在当前页面。
         </p>
       </header>
 
       {auth.state !== 'authed' && (
         <form onSubmit={submitAuth} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
-            Pseudonym
+            化名
             <input
               type="text"
               value={pseudonymInput}
@@ -116,7 +115,7 @@ export default function ChatPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Control code (6 digits)
+            控制码（6 位数字）
             <input
               type="text"
               inputMode="numeric"
@@ -137,17 +136,17 @@ export default function ChatPage() {
             }
             className="self-start rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            {auth.state === 'verifying' ? 'Verifying…' : 'Start chat'}
+            {auth.state === 'verifying' ? '正在验证…' : '开始聊天'}
           </button>
           {auth.state === 'rejected' && (
             <p className="text-sm text-red-600 dark:text-red-400" role="alert">
               {auth.reason === 'unknown_pseudonym'
-                ? 'No twin with that pseudonym.'
+                ? '没有找到这个化名对应的数字分身。'
                 : auth.reason === 'bad_code'
-                  ? 'That control code is incorrect.'
+                  ? '控制码不正确。'
                   : auth.reason === 'twin_not_active'
-                    ? 'Twin exists but is not in the active state.'
-                    : `Authentication failed: ${auth.reason}`}
+                    ? '数字分身存在但不处于激活状态。'
+                    : `验证失败：${auth.reason}`}
             </p>
           )}
         </form>
@@ -161,7 +160,7 @@ export default function ChatPage() {
           >
             {history.length === 0 && (
               <p className="text-sm text-neutral-500">
-                Say something to {auth.pseudonym}.
+                和 {auth.pseudonym} 说点什么吧。
               </p>
             )}
             {history.map((turn, i) => (
@@ -176,14 +175,14 @@ export default function ChatPage() {
                 style={{ maxWidth: '85%' }}
               >
                 <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">
-                  {turn.role === 'user' ? 'you' : auth.pseudonym}
+                  {turn.role === 'user' ? '你' : auth.pseudonym}
                 </p>
                 {turn.content}
               </div>
             ))}
             {sending && (
               <div className="self-start rounded bg-neutral-100 px-3 py-2 text-sm text-neutral-500 dark:bg-neutral-800">
-                {auth.pseudonym} is thinking…
+                {auth.pseudonym} 正在思考…
               </div>
             )}
           </div>
@@ -193,7 +192,7 @@ export default function ChatPage() {
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Message…"
+              placeholder="说点什么…"
               disabled={sending}
               className="flex-1 rounded border border-neutral-300 px-3 py-2 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900"
               autoFocus
@@ -203,7 +202,7 @@ export default function ChatPage() {
               disabled={sending || !draft.trim()}
               className="rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
             >
-              Send
+              发送
             </button>
           </form>
 

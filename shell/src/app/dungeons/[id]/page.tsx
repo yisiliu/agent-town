@@ -94,16 +94,16 @@ export default function DungeonSpectatorPage({
   if (data === undefined) {
     return (
       <main className="mx-auto max-w-4xl p-6">
-        <p className="text-neutral-500">Loading…</p>
+        <p className="text-neutral-500">加载中…</p>
       </main>
     );
   }
   if (data === null) {
     return (
       <main className="mx-auto max-w-4xl p-6">
-        <p className="text-red-600">Interaction not found.</p>
+        <p className="text-red-600">没有找到这个副本。</p>
         <a href="/instructor" className="text-indigo-600 underline">
-          Back to dashboard
+          ← 返回控制台
         </a>
       </main>
     );
@@ -121,12 +121,12 @@ export default function DungeonSpectatorPage({
             {interaction.type} <span className="text-neutral-500">#{interaction._id.slice(-8)}</span>
           </h1>
           <a href="/instructor" className="text-sm text-indigo-600 underline">
-            ← Dashboard
+            ← 控制台
           </a>
         </div>
         <div className="flex flex-wrap gap-3 text-sm">
           <Pill>
-            Status:{' '}
+            状态：{' '}
             <span
               className={
                 interaction.status === 'in_progress'
@@ -136,29 +136,29 @@ export default function DungeonSpectatorPage({
                     : 'text-amber-600'
               }
             >
-              {interaction.status}
+              {interaction.status === 'in_progress' ? '进行中' : interaction.status === 'ended' ? '已结束' : interaction.status}
             </span>
           </Pill>
-          <Pill>Phase: {PHASE_LABEL[interaction.phase] ?? interaction.phase}</Pill>
-          <Pill>Turn: {interaction.turnIndex}</Pill>
-          {interaction.day !== undefined && <Pill>Day: {interaction.day}</Pill>}
+          <Pill>阶段：{PHASE_LABEL[interaction.phase] ?? interaction.phase}</Pill>
+          <Pill>回合：{interaction.turnIndex}</Pill>
+          {interaction.day !== undefined && <Pill>天数：{interaction.day}</Pill>}
           {interaction.sheriff && (
             <Pill>
-              👮 Sheriff: <span className="font-semibold">{nameOf(interaction.sheriff)}</span>
+              👮 警长：<span className="font-semibold">{nameOf(interaction.sheriff)}</span>
             </Pill>
           )}
           {interaction.winner && (
             <Pill>
-              🏆 Winner: <span className="font-semibold">{interaction.winner}</span>
+              🏆 胜者：<span className="font-semibold">{interaction.winner}</span>
             </Pill>
           )}
-          <Pill>Origin: {interaction.originType}</Pill>
+          <Pill>来源：{interaction.originType === 'dungeon' ? '副本' : '独立'}</Pill>
         </div>
       </header>
 
       {interaction.publicLog.length > 0 && (
         <section className="rounded border bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
-          <h2 className="mb-1 text-sm font-semibold">Public log</h2>
+          <h2 className="mb-1 text-sm font-semibold">公开日志</h2>
           <ul className="space-y-0.5 text-sm">
             {interaction.publicLog.map((line, i) => {
               // Replace any twin IDs in the log with pseudonyms
@@ -177,10 +177,10 @@ export default function DungeonSpectatorPage({
         className="max-h-[60vh] space-y-2 overflow-y-auto rounded border p-3 dark:border-neutral-700"
       >
         <h2 className="mb-1 text-sm font-semibold sticky top-0 bg-white pb-2 dark:bg-neutral-950">
-          Turns ({turns.length})
+          回合记录（共 {turns.length}）
         </h2>
         {turns.length === 0 && (
-          <p className="text-sm text-neutral-500">Waiting for the first turn…</p>
+          <p className="text-sm text-neutral-500">等待第一个回合…</p>
         )}
         {turns.map((t) => {
           const actor = nameOf(t.actorTwinId);
@@ -215,7 +215,7 @@ export default function DungeonSpectatorPage({
                 )}
                 {!isPublic && (
                   <span className="rounded bg-purple-200 px-1 text-xs text-purple-900 dark:bg-purple-800 dark:text-purple-100">
-                    private
+                    私密
                   </span>
                 )}
               </div>
@@ -227,7 +227,7 @@ export default function DungeonSpectatorPage({
               {thinking && (
                 <details className="mt-1">
                   <summary className="cursor-pointer text-xs text-neutral-500">
-                    💭 internal thinking
+                    💭 内心独白
                   </summary>
                   <p className="mt-1 rounded bg-neutral-50 p-2 text-xs italic text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                     {thinking}

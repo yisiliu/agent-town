@@ -59,9 +59,9 @@ export default function InstructorDashboard() {
   return (
     <main className="mx-auto max-w-6xl space-y-8 p-6">
       <header className="border-b pb-4 dark:border-neutral-700">
-        <h1 className="text-2xl font-bold">Instructor Dashboard</h1>
+        <h1 className="text-2xl font-bold">教师控制台</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Ugly-but-functional. v1.
+          功能优先，外观第二。v1
         </p>
       </header>
 
@@ -104,22 +104,22 @@ function WorldSection() {
 
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <h2 className="text-lg font-semibold">Town State</h2>
-      {defaultWorld === undefined && <p>Loading…</p>}
+      <h2 className="text-lg font-semibold">小镇状态</h2>
+      {defaultWorld === undefined && <p>加载中…</p>}
       {defaultWorld === null && (
-        <p className="text-amber-600">No default world. Run ai-town init first.</p>
+        <p className="text-amber-600">没有默认世界。请先初始化 ai-town。</p>
       )}
       {defaultWorld && (
         <>
           <div className="space-y-1 text-sm">
             <div>
-              <span className="text-neutral-500">worldId:</span>{' '}
+              <span className="text-neutral-500">世界 ID：</span>{' '}
               <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-800">
                 {defaultWorld.worldId}
               </code>
             </div>
             <div>
-              <span className="text-neutral-500">ai-town engine:</span>{' '}
+              <span className="text-neutral-500">ai-town 引擎：</span>{' '}
               <code
                 className={
                   engineRunning
@@ -133,17 +133,17 @@ function WorldSection() {
               </code>
               {engineStopped && (
                 <span className="ml-2 text-xs text-red-600">
-                  ⚠ agents won't move while stopped — click "Start engine"
+                  ⚠ 引擎停止时 AI 角色不会移动，点「启动引擎」恢复
                 </span>
               )}
             </div>
             <div>
-              <span className="text-neutral-500">our session state:</span>{' '}
+              <span className="text-neutral-500">课时状态：</span>{' '}
               <code className={isFrozen ? 'text-blue-600' : 'text-green-600'}>
                 {fullStatus?.state ?? 'unknown'}
               </code>
               <span className="ml-2 text-xs text-neutral-500">
-                (class-hours schedule — separate from ai-town engine)
+                （上课/下课的时间表，与 ai-town 引擎不同）
               </span>
             </div>
           </div>
@@ -153,22 +153,22 @@ function WorldSection() {
               disabled={pending || engineRunning}
               className="rounded bg-emerald-600 px-3 py-1 text-sm text-white disabled:opacity-50"
             >
-              Start engine
+              启动引擎
             </button>
             <button
               onClick={() => wrap(() => aiTownStop({}))}
               disabled={pending || engineStopped}
               className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
             >
-              Stop engine
+              停止引擎
             </button>
             <button
               onClick={() => wrap(() => aiTownKick({}))}
               disabled={pending}
               className="rounded bg-yellow-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-              title="Force a tick — useful when the engine is alive but seems idle"
+              title="强制推进一帧——当引擎在线但看起来卡住时有用"
             >
-              Kick
+              踢一下
             </button>
             <div className="ml-4 border-l pl-4 dark:border-neutral-700">
               <button
@@ -176,14 +176,14 @@ function WorldSection() {
                 disabled={pending || isFrozen}
                 className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
               >
-                Freeze (session)
+                下课（冻结）
               </button>
               <button
                 onClick={() => wrap(() => resume({}))}
                 disabled={pending || !isFrozen}
                 className="ml-2 rounded bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-50"
               >
-                Resume (session)
+                上课（恢复）
               </button>
             </div>
           </div>
@@ -233,16 +233,16 @@ function TownEventSection() {
 
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <h2 className="text-lg font-semibold">Town Event (knob)</h2>
+      <h2 className="text-lg font-semibold">小镇事件（旋钮）</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        Prepends a context line to every alive agent's identity. ~30s for the next conversation_reply to reflect it.
+        往所有 AI 角色的身份信息里前置一段背景描述。约 30 秒后下一轮对话就会反映出来。
       </p>
       {event && (
         <div className="rounded bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
-          <div className="font-semibold">Currently set:</div>
+          <div className="font-semibold">当前事件：</div>
           <div className="italic">"{event.eventText}"</div>
           <div className="mt-1 text-neutral-500">
-            Affecting {event.agentsAffected} agents · since {new Date(event.setAt).toLocaleTimeString()}
+            影响 {event.agentsAffected} 位 AI 角色 · 自 {new Date(event.setAt).toLocaleTimeString()} 起
           </div>
         </div>
       )}
@@ -251,7 +251,7 @@ function TownEventSection() {
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="e.g., 一场暴风雨刚刚袭击了小镇 / A stranger arrived in town"
+          placeholder="例：一场暴风雨刚刚袭击了小镇 / 一位陌生人来到了小镇"
           className="flex-1 rounded border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
         />
         <button
@@ -259,7 +259,7 @@ function TownEventSection() {
           disabled={pending || !draft.trim()}
           className="rounded bg-amber-600 px-3 py-2 text-sm text-white disabled:opacity-50"
         >
-          Set
+          设置
         </button>
         <button
           type="button"
@@ -267,7 +267,7 @@ function TownEventSection() {
           disabled={pending || !event}
           className="rounded border px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-600"
         >
-          Clear
+          清除
         </button>
       </form>
       {error && <p className="text-red-600">{error}</p>}
@@ -296,11 +296,17 @@ function TwinsSection() {
     return true;
   });
 
+  const FILTER_LABEL: Record<typeof filter, string> = {
+    all: '全部',
+    student: '学生',
+    synthetic: 'AI 合成',
+  };
+
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">
-          Twins ({filtered.length}{twins ? ` of ${twins.length}` : ''})
+          数字分身（{filtered.length}{twins ? ` / 共 ${twins.length}` : ''}）
         </h2>
         <div className="flex gap-2 text-sm">
           {(['all', 'student', 'synthetic'] as const).map((f) => (
@@ -309,22 +315,22 @@ function TwinsSection() {
               onClick={() => setFilter(f)}
               className={`rounded px-2 py-1 ${filter === f ? 'bg-neutral-200 dark:bg-neutral-700' : ''}`}
             >
-              {f}
+              {FILTER_LABEL[f]}
             </button>
           ))}
         </div>
       </div>
-      {twins === undefined && <p>Loading…</p>}
-      {twins && twins.length === 0 && <p className="text-neutral-500">No twins yet.</p>}
+      {twins === undefined && <p>加载中…</p>}
+      {twins && twins.length === 0 && <p className="text-neutral-500">还没有数字分身。</p>}
       {filtered.length > 0 && (
         <table className="w-full text-sm">
           <thead className="text-left text-neutral-500">
             <tr>
-              <th className="py-1">Pseudonym</th>
-              <th className="py-1">State</th>
-              <th className="py-1">Source</th>
-              <th className="py-1">Card</th>
-              <th className="py-1">Action</th>
+              <th className="py-1">化名</th>
+              <th className="py-1">状态</th>
+              <th className="py-1">来源</th>
+              <th className="py-1">卡片</th>
+              <th className="py-1">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -339,7 +345,7 @@ function TwinsSection() {
                   }>{t.state}</span>
                 </td>
                 <td className="py-2 text-neutral-500">
-                  {t.isSynthetic ? 'synthetic' : 'student'}
+                  {t.isSynthetic ? 'AI 合成' : '学生'}
                 </td>
                 <td className="py-2">{t.hasCard ? '✓' : '—'}</td>
                 <td className="py-2">
@@ -348,7 +354,7 @@ function TwinsSection() {
                     disabled={pendingId === t._id || t.state !== 'active' || !t.hasCard}
                     className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-50"
                   >
-                    {pendingId === t._id ? '...' : 'Promote → town'}
+                    {pendingId === t._id ? '...' : '送入小镇'}
                   </button>
                 </td>
               </tr>
@@ -418,26 +424,26 @@ function DungeonsSection() {
 
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <h2 className="text-lg font-semibold">Dungeons</h2>
+      <h2 className="text-lg font-semibold">副本（小游戏）</h2>
 
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-neutral-500">Active / recent</h3>
-        {interactions === undefined && <p>Loading…</p>}
+        <h3 className="text-sm font-semibold text-neutral-500">进行中 / 近期</h3>
+        {interactions === undefined && <p>加载中…</p>}
         {interactions && interactions.length === 0 && (
-          <p className="text-neutral-500">No dungeons yet.</p>
+          <p className="text-neutral-500">还没有副本。</p>
         )}
         {interactions && interactions.length > 0 && (
           <table className="w-full text-sm">
             <thead className="text-left text-neutral-500">
               <tr>
-                <th className="py-1">Type</th>
-                <th className="py-1">Status</th>
-                <th className="py-1">Phase</th>
-                <th className="py-1">Turn</th>
-                <th className="py-1">Players</th>
-                <th className="py-1">Origin</th>
-                <th className="py-1">Winner</th>
-                <th className="py-1">Action</th>
+                <th className="py-1">类型</th>
+                <th className="py-1">状态</th>
+                <th className="py-1">阶段</th>
+                <th className="py-1">回合</th>
+                <th className="py-1">人数</th>
+                <th className="py-1">来源</th>
+                <th className="py-1">胜者</th>
+                <th className="py-1">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -449,19 +455,23 @@ function DungeonsSection() {
                       i.status === 'in_progress' ? 'text-green-600' :
                       i.status === 'ended' ? 'text-neutral-500' :
                       'text-amber-600'
-                    }>{i.status}</span>
+                    }>{
+                      i.status === 'in_progress' ? '进行中' :
+                      i.status === 'ended' ? '已结束' :
+                      i.status
+                    }</span>
                   </td>
                   <td className="py-2">{i.phase}</td>
                   <td className="py-2">{i.turnIndex}</td>
                   <td className="py-2">{i.participantCount}</td>
-                  <td className="py-2 text-xs">{i.originType}</td>
+                  <td className="py-2 text-xs">{i.originType === 'dungeon' ? '副本' : '独立'}</td>
                   <td className="py-2">{i.winner ?? '—'}</td>
                   <td className="py-2 space-x-2">
                     <a
                       href={`/dungeons/${i._id}`}
                       className="text-indigo-600 text-xs underline"
                     >
-                      watch
+                      围观
                     </a>
                     {i.status === 'in_progress' && (
                       <button
@@ -469,7 +479,7 @@ function DungeonsSection() {
                         disabled={pending}
                         className="text-red-600 text-xs underline"
                       >
-                        cancel
+                        取消
                       </button>
                     )}
                   </td>
@@ -482,7 +492,7 @@ function DungeonsSection() {
 
       <div className="space-y-2 border-t pt-3 dark:border-neutral-800">
         <h3 className="text-sm font-semibold text-neutral-500">
-          Start new dungeon — pick agents from the town
+          开新副本——从小镇里挑 AI 角色
         </h3>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -496,7 +506,7 @@ function DungeonsSection() {
             type="text"
             value={seed}
             onChange={(e) => setSeed(e.target.value)}
-            placeholder="seed (optional)"
+            placeholder="随机种子（可选）"
             className="rounded border px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
           />
           <button
@@ -504,25 +514,25 @@ function DungeonsSection() {
             disabled={pending || selected.size < 2}
             className="rounded bg-purple-600 px-3 py-1 text-sm text-white disabled:opacity-50"
           >
-            {pending ? '…' : `Start ${gameType} (${selected.size})`}
+            {pending ? '…' : `开 ${gameType}（已选 ${selected.size} 人）`}
           </button>
           {selected.size > 0 && (
             <button
               onClick={() => setSelected(new Set())}
               className="text-xs text-neutral-500 underline"
             >
-              clear
+              清空
             </button>
           )}
         </div>
         {lastStarted && (
           <p className="text-sm text-green-600">
-            ✓ Started! <a href={`/dungeons/${lastStarted}`} className="underline">Watch →</a>
+            ✓ 已开始！<a href={`/dungeons/${lastStarted}`} className="underline">点击围观 →</a>
           </p>
         )}
         <div className="space-y-1">
           <p className="text-xs text-neutral-500">
-            Available agents in town ({availableAgents.length}). Click to toggle selection.
+            小镇里可选的 AI 角色（{availableAgents.length} 位）。点击切换选中状态。
           </p>
           <div className="flex flex-wrap gap-1">
             {availableAgents.map((a) => (
@@ -541,14 +551,13 @@ function DungeonsSection() {
             ))}
             {availableAgents.length === 0 && (
               <p className="text-xs text-amber-600">
-                No agents in town yet. Promote some twins to the town first.
+                小镇里还没有 AI 角色。先把数字分身「送入小镇」。
               </p>
             )}
           </div>
           {inDungeonAgents.length > 0 && (
             <p className="text-xs text-neutral-500">
-              Currently in a dungeon (teleported away):{' '}
-              {inDungeonAgents.map((a) => a.name).join(', ')}
+              正在副本里（已被传送走）：{inDungeonAgents.map((a) => a.name).join('、')}
             </p>
           )}
         </div>
