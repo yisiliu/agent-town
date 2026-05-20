@@ -26,6 +26,18 @@ export const interactions = defineTable({
   endedAt: v.optional(v.number()),
   // Plugin-defined; werewolf uses 'werewolves' | 'villagers'.
   winner: v.optional(v.string()),
+  // ---- Dungeon bridge (links a game back to an ai-town world) ----
+  // 'standalone' = launched directly via startInteraction (test / dev path).
+  // 'dungeon'    = launched from ai-town via startDungeonGame; the players
+  //                are real ai-town agents. Memory write-back on game end
+  //                routes through this.
+  originType: v.optional(v.union(v.literal('standalone'), v.literal('dungeon'))),
+  // For dungeon-origin games: which ai-town world spawned this.
+  worldId: v.optional(v.id('worlds')),
+  // For dungeon-origin games: the ai-town playerIds parallel to `participants`
+  // (twin IDs). Same length, same index correspondence — participants[i] is
+  // the twin for originPlayerIds[i]'s ai-town agent.
+  originPlayerIds: v.optional(v.array(v.string())),
 })
   .index('by_status_and_lastTickAt', ['status', 'lastTickAt'])
   .index('by_type', ['type']);

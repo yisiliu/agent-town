@@ -16,6 +16,7 @@ const OUR_TABLES = [
   'objects',
   'interactions',
   'interactionTurns',
+  'interactionMemories',
   'noticeboard',
   'digests',
   'retractions',

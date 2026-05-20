@@ -4,6 +4,7 @@ import { consents } from './consents';
 import { objects } from './objects';
 import { interactions } from './interactions';
 import { interactionTurns } from './interactionTurns';
+import { interactionMemories } from './interactionMemories';
 import { noticeboard } from './noticeboard';
 import { digests } from './digests';
 import { retractions } from './retractions';
@@ -29,6 +30,7 @@ export const ourTables = {
   objects,
   interactions,
   interactionTurns,
+  interactionMemories,
   noticeboard,
   digests,
   retractions,
