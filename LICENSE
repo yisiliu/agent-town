@@ -22,7 +22,12 @@ SOFTWARE.
 
 ---
 
-Portions of this project are derived from a16z-infra/ai-town, which is
-licensed under Apache License 2.0. See ai-town-fork/LICENSE for the
-upstream license text. Files inherited from upstream are listed in
-ai-town-fork/UPSTREAM_FILES.txt.
+Portions of this project (everything under ai-town-fork/ that appears in
+ai-town-fork/UPSTREAM_FILES.txt) are derived from a16z-infra/ai-town,
+which is also distributed under the MIT License:
+
+  Copyright (c) 2023 a16z-infra
+
+The upstream license text is preserved verbatim at ai-town-fork/LICENSE.
+Modifications to upstream files are annotated with `# EXEMPT: <reason>`
+entries in ai-town-fork/UPSTREAM_FILES.txt.
