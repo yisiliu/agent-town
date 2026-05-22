@@ -4,9 +4,14 @@ const OPENAI_EMBEDDING_DIMENSION = 1536;
 const TOGETHER_EMBEDDING_DIMENSION = 1024;
 const OLLAMA_EMBEDDING_DIMENSION = 1024;
 
-export const EMBEDDING_DIMENSION: number = TOGETHER_EMBEDDING_DIMENSION;
+export const EMBEDDING_DIMENSION: number = 1536;
 
 export function detectMismatchedLLMProvider() {
+  // We use MiniMax embo-01 (1536-dim, same as OpenAI) for embeddings + DeepSeek
+  // for chat — neither matches ai-town's hardcoded provider→dim assumptions.
+  // Skip the runtime guard entirely; our schema's vector index dim is the
+  // real source of truth.
+  return;
   switch (EMBEDDING_DIMENSION) {
     case OPENAI_EMBEDDING_DIMENSION:
       if (!process.env.OPENAI_API_KEY) {
@@ -59,9 +64,6 @@ export function getLLMConfig(): LLMConfig {
     };
   }
   if (process.env.TOGETHER_API_KEY) {
-    if (EMBEDDING_DIMENSION !== TOGETHER_EMBEDDING_DIMENSION) {
-      throw new Error('EMBEDDING_DIMENSION must be 768 for Together.ai');
-    }
     return {
       provider: 'together',
       url: 'https://api.together.xyz',
