@@ -27,8 +27,11 @@ export const FAMILIES = [
 ] as const;
 export type Family = (typeof FAMILIES)[number];
 
+// KEEP IN SYNC with convex/ours/lib/cardValidator.ts. Relaxed 2026-05 to
+// match /spec page: only `pseudonym` mandatory; unknown keys tolerated.
 export const ALLOWED_FRONTMATTER_KEYS = [
   'pseudonym',
+  'intro',
   'real_name_hash',
   'plane',
   'family',
@@ -39,39 +42,12 @@ export const ALLOWED_FRONTMATTER_KEYS = [
   'source_stats',
 ] as const;
 
-export const REQUIRED_FRONTMATTER_KEYS = [
-  'pseudonym',
-  'real_name_hash',
-  'plane',
-  'schema_version',
-  'created',
-  'register',
-  'language',
-] as const;
+export const REQUIRED_FRONTMATTER_KEYS = ['pseudonym'] as const;
 
-export const REQUIRED_SECTIONS = [
-  'Layer 0 — Core personality',
-  'Layer 1 — Identity',
-  'Layer 2 — Expression style',
-  'Layer 3 — Decisions & judgment',
-  'Layer 4 — Interpersonal behavior',
-  'Layer 5 — Boundaries & red lines',
-  'Worldview principles',
-  'Example exchanges',
-] as const;
+export const REQUIRED_SECTIONS = [] as const;
 
-export const SECTION_LENGTH_CAPS: Record<string, number> = {
-  'Layer 0 — Core personality': 1500,
-  'Layer 1 — Identity': 2000,
-  'Layer 2 — Expression style': 4000,
-  'Layer 3 — Decisions & judgment': 3500,
-  'Layer 4 — Interpersonal behavior': 3500,
-  'Layer 5 — Boundaries & red lines': 2000,
-  'Worldview principles': 2500,
-  "How they've changed": 2500,
-  'How they’ve changed': 2500,
-  'Example exchanges': 4000,
-};
+// Dropped in 2026-05 — see cardValidator.ts mirror for reasoning.
+export const SECTION_LENGTH_CAPS: Record<string, number> = {};
 
 function canonicaliseSection(s: string): string {
   return s.replace(/’/g, "'");
@@ -140,12 +116,7 @@ export function validateCard(input: string): ValidationResult {
   }
 
   const fm = raw as Record<string, unknown>;
-  const allowedSet = new Set<string>(ALLOWED_FRONTMATTER_KEYS);
-  for (const key of Object.keys(fm)) {
-    if (!allowedSet.has(key)) {
-      errors.push({ kind: 'unknown_frontmatter_key', key });
-    }
-  }
+  // Lenient: extra frontmatter keys tolerated. See cardValidator.ts mirror.
   for (const key of REQUIRED_FRONTMATTER_KEYS) {
     if (!(key in fm) || fm[key] === undefined || fm[key] === null) {
       errors.push({ kind: 'missing_required_frontmatter', key });

@@ -168,9 +168,17 @@ export const agentInputs = {
       character: v.string(),
       identity: v.string(),
       plan: v.string(),
+      // Optional short blurb shown in the UI player-details sidebar.
+      // The full `identity` stays the LLM-facing persona; `description`
+      // is the human-readable intro. Falls back to identity for back-
+      // compat with callers that don't supply a description.
+      description: v.optional(v.string()),
     },
     handler: (game, now, args) => {
-      const playerId = Player.join(game, now, args.name, args.character, args.identity);
+      const description = args.description && args.description.length > 0
+        ? args.description
+        : args.identity;
+      const playerId = Player.join(game, now, args.name, args.character, description);
       const agentId = game.allocId('agents');
       game.world.agents.set(
         agentId,

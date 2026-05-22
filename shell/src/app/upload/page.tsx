@@ -66,6 +66,14 @@ export default function UploadPage() {
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           拖一份 <code>distill build</code> 出来的卡片进来。我们会检查格式、扫一遍隐私信息和注入，没问题就发你三个码。
         </p>
+        <p className="mt-2 text-sm">
+          <a
+            href="/spec"
+            className="text-indigo-600 underline hover:text-indigo-700"
+          >
+            看 card.md 格式说明 →
+          </a>
+        </p>
       </header>
 
       {!token && !confirmed && (

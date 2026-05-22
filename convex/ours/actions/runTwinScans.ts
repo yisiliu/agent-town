@@ -73,6 +73,24 @@ export default internalAction({
       now: Date.now(),
       preparedCodes,
     });
+
+    // Auto-promote: as soon as a twin passes the scans, push it straight
+    // into the default town. Skips the instructor "approve" click — the
+    // student's upload UI flow becomes upload→codes-displayed→already-in-town.
+    if (outcome.decision === 'pass') {
+      try {
+        await ctx.runMutation(ref.ours.mutations.promoteTwinToAgent.default, {
+          twinId,
+        });
+      } catch (e) {
+        // Don't break the upload flow if promotion fails — the twin is
+        // still active and the instructor can promote manually from the
+        // dashboard. Log it for diagnosis.
+        console.warn(
+          `runTwinScans: auto-promote failed for ${twinId}: ${(e as Error).message}`,
+        );
+      }
+    }
     /* eslint-enable @typescript-eslint/no-explicit-any */
   },
 });

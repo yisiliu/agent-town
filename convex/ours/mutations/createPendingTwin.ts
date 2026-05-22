@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
 import { recordPending } from '../lib/uploadResultsStore';
+import { parseIntro } from '../lib/parseCard';
 
 // Internal — called by uploadTwin (Node action) after validation passes,
 // before scans run. Writes the twins + cards rows in pending_scan state
@@ -30,6 +31,7 @@ export default internalMutation({
     const cardId = await ctx.db.insert('cards', {
       twinId,
       markdown: args.markdown,
+      intro: parseIntro(args.markdown),
       snapshotAt: args.now,
       piiScanStatus: 'pending',
       promptInjectionScanStatus: 'pending',

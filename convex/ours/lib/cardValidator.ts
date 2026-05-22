@@ -30,8 +30,15 @@ export const FAMILIES = [
 ] as const;
 export type Family = (typeof FAMILIES)[number];
 
+// Relaxed in 2026-05 to match the /spec page handed to students:
+// only `pseudonym` is mandatory; everything else (intro, distill-twin
+// Layer 0-5 fields, plane/register/etc) is optional. Unknown keys are
+// no longer rejected so students can add `intro` and any custom fields
+// without hitting an `unknown_frontmatter_key` error. distill-twin
+// output still validates — it just isn't required.
 export const ALLOWED_FRONTMATTER_KEYS = [
   'pseudonym',
+  'intro',
   'real_name_hash',
   'plane',
   'family',
@@ -42,51 +49,20 @@ export const ALLOWED_FRONTMATTER_KEYS = [
   'source_stats',
 ] as const;
 
-// family + source_stats are optional in the validator (lenient at the
-// boundary — distill enforces them upstream, and a manually-edited
-// card without source_stats should still upload).
-export const REQUIRED_FRONTMATTER_KEYS = [
-  'pseudonym',
-  'real_name_hash',
-  'plane',
-  'schema_version',
-  'created',
-  'register',
-  'language',
-] as const;
+export const REQUIRED_FRONTMATTER_KEYS = ['pseudonym'] as const;
 
-// distill-twin renders body as Layer 0-5 + Worldview + Example exchanges,
-// plus the optional "How they've changed" section (only present when
-// Stage 3 detected real opinion drift). Headers are matched after
-// apostrophe canonicalisation (’ → '), so the curly form works too.
-export const REQUIRED_SECTIONS = [
-  'Layer 0 — Core personality',
-  'Layer 1 — Identity',
-  'Layer 2 — Expression style',
-  'Layer 3 — Decisions & judgment',
-  'Layer 4 — Interpersonal behavior',
-  'Layer 5 — Boundaries & red lines',
-  'Worldview principles',
-  'Example exchanges',
-] as const;
+// No structural section requirements. distill-twin output still passes;
+// freeform Markdown bodies also pass. Length caps below stay (they only
+// fire when a matching section name is present, so freeform bodies are
+// unaffected).
+export const REQUIRED_SECTIONS = [] as const;
 
-// Practical character caps. Distill's own SECTION_MAX_WORDS uses word
-// counts (English-biased); we use characters so Chinese cards aren't
-// over-counted. Numbers chosen as (distill_words × ~6 chars/word) —
-// roomy enough that distill's soft warnings never become our hard
-// rejections under normal output.
-export const SECTION_LENGTH_CAPS: Record<string, number> = {
-  'Layer 0 — Core personality': 1500,
-  'Layer 1 — Identity': 2000,
-  'Layer 2 — Expression style': 4000,
-  'Layer 3 — Decisions & judgment': 3500,
-  'Layer 4 — Interpersonal behavior': 3500,
-  'Layer 5 — Boundaries & red lines': 2000,
-  'Worldview principles': 2500,
-  "How they've changed": 2500,
-  'How they’ve changed': 2500,
-  'Example exchanges': 4000,
-};
+// Dropped per-section caps in the 2026-05 lenient pass. The 5MB total
+// payload cap in uploadTwin.ts is the only hard limit now — per-section
+// micro-caps were rejecting distill-twin output that was 49 chars over
+// (the user's first upload after the relax pass). Keep the export as
+// an empty record so the consuming loop stays a no-op without removing it.
+export const SECTION_LENGTH_CAPS: Record<string, number> = {};
 
 function canonicaliseSection(s: string): string {
   return s.replace(/’/g, "'");
@@ -156,12 +132,9 @@ export function validateCard(input: string): ValidationResult {
   }
 
   const fm = raw as Record<string, unknown>;
-  const allowedSet = new Set<string>(ALLOWED_FRONTMATTER_KEYS);
-  for (const key of Object.keys(fm)) {
-    if (!allowedSet.has(key)) {
-      errors.push({ kind: 'unknown_frontmatter_key', key });
-    }
-  }
+  // Lenient: extra frontmatter keys are tolerated. Students/AIs often add
+  // their own fields (e.g. `tone:`, `voice:`) and that shouldn't block upload.
+  // ALLOWED_FRONTMATTER_KEYS is still exported for documentation purposes.
   for (const key of REQUIRED_FRONTMATTER_KEYS) {
     if (!(key in fm) || fm[key] === undefined || fm[key] === null) {
       errors.push({ kind: 'missing_required_frontmatter', key });
