@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
+import { Doc, Id } from '../../convex/_generated/dataModel';
 import closeImg from '../../assets/close.svg';
 import { SelectElement } from './Player';
 import { Messages } from './Messages';
@@ -9,6 +10,14 @@ import { useSendInput } from '../hooks/sendInput';
 import { Player } from '../../convex/aiTown/player';
 import { GameId } from '../../convex/aiTown/ids';
 import { ServerGame } from '../hooks/serverGame';
+
+// String-form refs to ours/* queries (ai-town's codegen doesn't
+// always include the additive `ours/` namespace, so cast through any
+// to silence the type-side gap).
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const playerConversationsRef = 'ours/queries/playerConversations:default' as any;
+const playerReflectionsRef = 'ours/queries/playerReflections:default' as any;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function PlayerDetails({
   worldId,
@@ -30,8 +39,11 @@ export default function PlayerDetails({
   const players = [...game.world.players.values()];
   const humanPlayer = players.find((p) => p.human === humanTokenIdentifier);
   const humanConversation = humanPlayer ? game.world.playerConversation(humanPlayer) : undefined;
-  // Always select the other player if we're in a conversation with them.
-  if (humanPlayer && humanConversation) {
+  // Default to the conversation partner ONLY when the user hasn't picked
+  // anyone else. Without this gate, every click on a different sprite (or
+  // on the X close button) was silently snapping back to the partner —
+  // making the panel feel locked until the conversation ended.
+  if (!playerId && humanPlayer && humanConversation) {
     const otherPlayerIds = [...humanConversation.participants.keys()].filter(
       (p) => p !== humanPlayer.id,
     );
@@ -41,10 +53,16 @@ export default function PlayerDetails({
   const player = playerId && game.world.players.get(playerId);
   const playerConversation = player && game.world.playerConversation(player);
 
-  const previousConversation = useQuery(
-    api.world.previousConversation,
+  const pastConversations = useQuery(
+    playerConversationsRef,
     playerId ? { worldId, playerId } : 'skip',
-  );
+  ) as Doc<'archivedConversations'>[] | undefined;
+  const reflections = useQuery(
+    playerReflectionsRef,
+    playerId ? { playerId, limit: 5 } : 'skip',
+  ) as
+    | { _id: string; createdAt: number; description: string; importance: number }[]
+    | undefined;
 
   const playerDescription = playerId && game.playerDescriptions.get(playerId);
 
@@ -243,21 +261,109 @@ export default function PlayerDetails({
           scrollViewRef={scrollViewRef}
         />
       )}
-      {!playerConversation && previousConversation && (
-        <>
-          <div className="box flex-grow">
-            <h2 className="bg-brown-700 text-lg text-center">上一段对话</h2>
-          </div>
-          <Messages
-            worldId={worldId}
-            engineId={engineId}
-            inConversationWithMe={false}
-            conversation={{ kind: 'archived', doc: previousConversation }}
-            humanPlayer={humanPlayer}
-            scrollViewRef={scrollViewRef}
-          />
-        </>
+      {!playerConversation && pastConversations && pastConversations.length > 0 && (
+        <ConversationHistory
+          conversations={pastConversations}
+          worldId={worldId}
+          engineId={engineId}
+          humanPlayer={humanPlayer}
+          scrollViewRef={scrollViewRef}
+        />
       )}
+      {reflections && reflections.length > 0 && (
+        <Reflections reflections={reflections} />
+      )}
+    </>
+  );
+}
+
+// Collapsible list of every archived conversation this player was in.
+// One row per conversation: time + numMessages + partner names; click
+// to expand the full <Messages> render.
+function ConversationHistory({
+  conversations,
+  worldId,
+  engineId,
+  humanPlayer,
+  scrollViewRef,
+}: {
+  conversations: Doc<'archivedConversations'>[];
+  worldId: Id<'worlds'>;
+  engineId: Id<'engines'>;
+  humanPlayer: Player | undefined;
+  scrollViewRef: React.RefObject<HTMLDivElement>;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const descriptions = useQuery(api.world.gameDescriptions, { worldId });
+  const nameOf = (pid: string) =>
+    descriptions?.playerDescriptions.find((p) => p.playerId === pid)?.name ?? pid;
+
+  return (
+    <>
+      <div className="box flex-grow mt-4">
+        <h2 className="bg-brown-700 text-lg text-center">
+          过往对话 · {conversations.length}
+        </h2>
+      </div>
+      <ul className="my-2 space-y-1">
+        {conversations.map((c) => {
+          const isOpen = openId === c.id;
+          const ts = new Date(c.ended).toLocaleString();
+          const partners = c.participants.map(nameOf).join('、');
+          return (
+            <li key={c.id} className="bg-brown-700 rounded">
+              <button
+                className="w-full text-left px-2 py-1 text-sm hover:bg-brown-600"
+                onClick={() => setOpenId(isOpen ? null : c.id)}
+              >
+                <span className="opacity-70 text-xs">{ts}</span>
+                <span className="ml-2">{partners}</span>
+                <span className="ml-2 text-xs opacity-70">· {c.numMessages} 条</span>
+                <span className="float-right">{isOpen ? '▼' : '▶'}</span>
+              </button>
+              {isOpen && (
+                <div className="px-2 pb-2">
+                  <Messages
+                    worldId={worldId}
+                    engineId={engineId}
+                    inConversationWithMe={false}
+                    conversation={{ kind: 'archived', doc: c }}
+                    humanPlayer={humanPlayer}
+                    scrollViewRef={scrollViewRef}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+// LLM-generated self-summaries the agent writes about its own life.
+// Read-only — purely informational so students can see what the
+// agent is keeping track of internally.
+function Reflections({
+  reflections,
+}: {
+  reflections: { _id: string; createdAt: number; description: string; importance: number }[];
+}) {
+  return (
+    <>
+      <div className="box flex-grow mt-4">
+        <h2 className="bg-brown-700 text-lg text-center">自我反思</h2>
+      </div>
+      <ul className="my-2 space-y-2">
+        {reflections.map((r) => (
+          <li key={r._id} className="bg-brown-700 rounded px-2 py-2 text-sm">
+            <div className="text-xs opacity-70 mb-1">
+              {new Date(r.createdAt).toLocaleString()} · 重要度 {r.importance.toFixed(2)}
+            </div>
+            <p className="leading-snug">{r.description}</p>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

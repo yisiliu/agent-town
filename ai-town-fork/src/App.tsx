@@ -13,7 +13,8 @@ import ReactModal from 'react-modal';
 import MusicButton from './components/buttons/MusicButton.tsx';
 import Button from './components/buttons/Button.tsx';
 import InteractButton from './components/buttons/InteractButton.tsx';
-import FreezeButton from './components/FreezeButton.tsx';
+// FreezeButton (上游) 改由教师控制台统一管理，这里不挂载。
+// import FreezeButton from './components/FreezeButton.tsx';
 import { MAX_HUMAN_PLAYERS } from '../convex/constants.ts';
 import PoweredByConvex from './components/PoweredByConvex.tsx';
 
@@ -81,7 +82,7 @@ export default function Home() {
 
         <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-4 gap-3 p-6 flex-wrap pointer-events-none">
           <div className="flex gap-4 flex-grow pointer-events-none">
-            <FreezeButton />
+            {/* <FreezeButton /> 已移至教师控制台，避免学生误冻结小镇 */}
             <MusicButton />
             <Button href="https://github.com/a16z-infra/ai-town" imgUrl={starImg}>
               Star
