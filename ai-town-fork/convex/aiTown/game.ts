@@ -45,7 +45,10 @@ type GameStateDiff = Infer<typeof gameStateDiff>;
 
 export class Game extends AbstractGame {
   tickDuration = 16;
-  stepDuration = 1000;
+  // Wall-clock sleep between runStep iterations in main.ts. Default
+  // upstream is 1000 — agents felt frantic in class, so we let runStep
+  // sleep 2.5s between steps to slow movement + chat pacing in the UI.
+  stepDuration = 2500;
   maxTicksPerStep = 600;
   maxInputsPerStep = 32;
 

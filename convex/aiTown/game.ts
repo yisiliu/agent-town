@@ -45,7 +45,10 @@ type GameStateDiff = Infer<typeof gameStateDiff>;
 
 export class Game extends AbstractGame {
   tickDuration = 16;
-  stepDuration = 1000;
+  // Wall-clock sleep between runStep iterations in main.ts. Default
+  // upstream is 1000 — agents felt frantic in class, so we let runStep
+  // sleep 2.5s between steps to slow movement + chat pacing in the UI.
+  stepDuration = 2500;
   maxTicksPerStep = 600;
   maxInputsPerStep = 32;
 
@@ -224,13 +227,15 @@ export class Game extends AbstractGame {
       historicalLocations.push({ playerId: id, location: buffer });
       bufferSize += buffer.byteLength;
     }
-    if (bufferSize > 0) {
-      console.debug(
-        `Packed ${Object.entries(historicalLocations).length} history buffers in ${(
-          bufferSize / 1024
-        ).toFixed(2)}KiB.`,
-      );
-    }
+    // Suppressed: noisy per-tick log that blows past Convex's 256-line cap
+    // during runStep when the engine packs history every simulation step.
+    // if (bufferSize > 0) {
+    //   console.debug(
+    //     `Packed ${Object.entries(historicalLocations).length} history buffers in ${(
+    //       bufferSize / 1024
+    //     ).toFixed(2)}KiB.`,
+    //   );
+    // }
     this.historicalLocations.clear();
 
     const result: GameStateDiff = {

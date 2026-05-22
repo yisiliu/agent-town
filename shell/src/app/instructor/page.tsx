@@ -22,7 +22,8 @@ const cancelInteractionRef = 'ours/mutations/cancelInteraction:default' as any;
 // ai-town engine controls (testing.ts exports these as public mutations)
 const aiTownResumeRef = 'testing:resume' as any;
 const aiTownStopRef = 'testing:stop' as any;
-const aiTownKickRef = 'testing:kick' as any;
+// testing:kick is an internalMutation upstream — use our public wrapper.
+const aiTownKickRef = 'ours/mutations/kickEngine:default' as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 type TownAgent = {
@@ -138,12 +139,12 @@ function WorldSection() {
               )}
             </div>
             <div>
-              <span className="text-neutral-500">课时状态：</span>{' '}
+              <span className="text-neutral-500">节奏：</span>{' '}
               <code className={isFrozen ? 'text-blue-600' : 'text-green-600'}>
-                {fullStatus?.state ?? 'unknown'}
+                {fullStatus?.state === 'live' ? '课中 · 快速 (2.5s/tick)' : fullStatus?.state === 'frozen' ? '下课 · 慢速 (30s/tick)' : 'unknown'}
               </code>
               <span className="ml-2 text-xs text-neutral-500">
-                （上课/下课的时间表，与 ai-town 引擎不同）
+                （24/7 在线，state 控制 tick 速度而非开关）
               </span>
             </div>
           </div>
@@ -175,15 +176,17 @@ function WorldSection() {
                 onClick={() => wrap(() => freeze({}))}
                 disabled={pending || isFrozen}
                 className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+                title="切到下课节奏：30 秒一 tick，省 LLM 费但小镇仍然活着"
               >
-                下课（冻结）
+                下课（30s/tick）
               </button>
               <button
                 onClick={() => wrap(() => resume({}))}
                 disabled={pending || !isFrozen}
                 className="ml-2 rounded bg-green-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+                title="切到课中节奏：2.5 秒一 tick，正常对话速度"
               >
-                上课（恢复）
+                上课（2.5s/tick）
               </button>
             </div>
           </div>

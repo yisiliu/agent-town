@@ -42,3 +42,30 @@ export async function isTownTickAllowed(ctx: ActionCtxLike): Promise<boolean> {
     return true;
   }
 }
+
+// Pace selection. The town now runs 24/7 — `frozen` no longer fully
+// stops the engine, it just slows the wall-clock interval between
+// runStep iterations so off-hours ambient activity is cheap. The
+// instructor flips state via the existing freeze/resume buttons.
+const PACE_LIVE_MS = 2500;
+const PACE_FROZEN_MS = 30_000;
+
+export function stepDurationMsFor(status: WorldStatusShape | null): number {
+  if (!status) return PACE_LIVE_MS;
+  return status.state === 'live' ? PACE_LIVE_MS : PACE_FROZEN_MS;
+}
+
+export async function getTownStepDurationMs(
+  ctx: ActionCtxLike,
+  fallback: number,
+): Promise<number> {
+  try {
+    const status = (await ctx.runQuery(
+      'ours/queries/worldStatus:default',
+      {},
+    )) as WorldStatusShape | null;
+    return stepDurationMsFor(status);
+  } catch {
+    return fallback;
+  }
+}
