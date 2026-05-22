@@ -21,27 +21,38 @@ export type ViewportProps = {
 export default PixiComponent('Viewport', {
   create(props: ViewportProps) {
     const { app, children, viewportRef, ...viewportProps } = props;
+    // `events` is a valid Pixi v7 prop but missing from pixi-viewport's
+    // IViewportOptions typing — cast to bypass the type-only gap.
     const viewport = new Viewport({
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       events: app.renderer.events,
       passiveWheel: false,
       ...viewportProps,
-    });
+    } as ConstructorParameters<typeof Viewport>[0]);
     if (viewportRef) {
       viewportRef.current = viewport;
     }
     // Activate plugins
+    // Zoom bounds:
+    //   minScale = zoom-out floor; lets users see roughly the whole world
+    //   maxScale = zoom-in ceiling; tuned for small-tile maps (16px) so a
+    //              single tile can grow to ~96px on screen at full zoom.
+    // The original formula `(1.04 * screenWidth) / (worldWidth / 2)` was
+    // tuned for the 1440-px gentle map and produces minScale > maxScale on
+    // smaller worlds (e.g. pokeworld at 720px) — which silently breaks
+    // clampZoom and locks the camera at one fixed level.
+    const minScale = Math.min(0.5, (props.screenWidth * 1.0) / props.worldWidth);
     viewport
       .drag()
       .pinch({})
       .wheel()
       .decelerate()
       .clamp({ direction: 'all', underflow: 'center' })
-      .setZoom(-10)
       .clampZoom({
-        minScale: (1.04 * props.screenWidth) / (props.worldWidth / 2),
-        maxScale: 3.0,
-      });
+        minScale,
+        maxScale: 6.0,
+      })
+      .setZoom(2.0);
     return viewport;
   },
   applyProps(viewport, oldProps: any, newProps: any) {

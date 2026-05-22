@@ -4,7 +4,9 @@ import PixiGame from './PixiGame.tsx';
 import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
 import { ConvexProvider, useConvex, useQuery } from 'convex/react';
+import type { Viewport } from 'pixi-viewport';
 import PlayerDetails from './PlayerDetails.tsx';
+import ResidentList from './ResidentList.tsx';
 import { api } from '../../convex/_generated/api';
 import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat.ts';
 import { useHistoricalTime } from '../hooks/useHistoricalTime.ts';
@@ -35,6 +37,9 @@ export default function Game() {
   const { historicalTime, timeManager } = useHistoricalTime(worldState?.engine);
 
   const scrollViewRef = useRef<HTMLDivElement>(null);
+  // Lifted from PixiGame so the ResidentList sibling can pan the
+  // camera by calling viewportRef.current.animate(...).
+  const viewportRef = useRef<Viewport | undefined>(undefined);
 
   if (!worldId || !engineId || !game) {
     return null;
@@ -42,7 +47,13 @@ export default function Game() {
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
-      <div className="mx-auto w-full max-w grid grid-rows-[240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
+      <div className="mx-auto w-full max-w grid grid-rows-[200px_240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[180px_1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
+        {/* Resident list */}
+        <ResidentList
+          game={game}
+          viewportRef={viewportRef}
+          setSelectedElement={setSelectedElement}
+        />
         {/* Game area */}
         <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
           <div className="absolute inset-0">
@@ -55,10 +66,11 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
                     game={game}
                     worldId={worldId}
                     engineId={engineId}
-                    width={width}
-                    height={height}
+                    width={width ?? 0}
+                    height={height ?? 0}
                     historicalTime={historicalTime}
                     setSelectedElement={setSelectedElement}
+                    viewportRef={viewportRef}
                   />
                 </ConvexProvider>
               </Stage>
