@@ -54,13 +54,13 @@
 ./convex/aiTown/agentOperations.ts
 ./convex/aiTown/conversation.ts
 ./convex/aiTown/conversationMembership.ts
-./convex/aiTown/game.ts
+./convex/aiTown/game.ts   # EXEMPT: stepDuration bumped to 2500ms (classroom pacing)
 ./convex/aiTown/ids.ts
 ./convex/aiTown/inputHandler.ts
 ./convex/aiTown/inputs.ts
 ./convex/aiTown/insertInput.ts
 ./convex/aiTown/location.ts
-./convex/aiTown/main.ts   # EXEMPT: tick-gate (Task 14)
+./convex/aiTown/main.ts   # EXEMPT: tick-gate (Task 14) + dynamic stepDuration (24/7 pace)
 ./convex/aiTown/movement.ts
 ./convex/aiTown/player.ts
 ./convex/aiTown/playerDescription.ts
@@ -104,7 +104,7 @@
 ./data/animations/windmill.json
 ./data/characters.ts
 ./data/convertMap.js
-./data/gentle.js
+./data/gentle.js   # EXEMPT: Pokémon-overworld map swap (vectorxxxxx/pokeworld)
 ./data/spritesheets/f1.ts
 ./data/spritesheets/f2.ts
 ./data/spritesheets/f3.ts
@@ -145,7 +145,7 @@
 ./public/assets/tilemap.json
 ./public/favicon.ico
 ./README.md
-./src/App.tsx  # EXEMPT: zh-CN translation (no logic changes)
+./src/App.tsx  # EXEMPT: zh-CN translation + FreezeButton 移至教师控制台
 ./src/components/buttons/Button.tsx
 ./src/components/buttons/InteractButton.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/buttons/LoginButton.tsx
@@ -155,14 +155,15 @@
 ./src/components/DebugPath.tsx
 ./src/components/DebugTimeManager.tsx
 ./src/components/FreezeButton.tsx  # EXEMPT: zh-CN translation (no logic changes)
-./src/components/Game.tsx
+./src/components/Game.tsx  # EXEMPT: lifted viewportRef + 居民侧栏挂载
 ./src/components/MessageInput.tsx  # EXEMPT: zh-CN translation (no logic changes)
 ./src/components/Messages.tsx  # EXEMPT: zh-CN translation (no logic changes)
-./src/components/PixiGame.tsx
+./src/components/PixiGame.tsx  # EXEMPT: viewportRef 从 props 传入（给居民列表点击定位用）
 ./src/components/PixiStaticMap.tsx
-./src/components/PixiViewport.tsx
+./src/components/PixiViewport.tsx   # EXEMPT: zoom bounds tuned for small-tile maps
 ./src/components/Player.tsx
-./src/components/PlayerDetails.tsx  # EXEMPT: zh-CN translation (no logic changes)
+./src/components/PlayerDetails.tsx  # EXEMPT: zh-CN translation + click-lock fix + 过往对话/反思区块
+./src/components/ResidentList.tsx  # EXEMPT: ours/ 新增组件（居民列表+点击定位）
 ./src/components/PositionIndicator.tsx
 ./src/components/PoweredByConvex.tsx
 ./src/editor/campfire.json

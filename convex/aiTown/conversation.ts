@@ -67,7 +67,7 @@ export class Conversation {
     // of them to "participating" and stop their paths.
     if (member1.status.kind === 'walkingOver' && member2.status.kind === 'walkingOver') {
       if (playerDistance < CONVERSATION_DISTANCE) {
-        console.log(`Starting conversation between ${player1.id} and ${player2.id}`);
+        // console.log(`Starting conversation between ${player1.id} and ${player2.id}`);
 
         // First, stop the two players from moving.
         stopPlayer(player1);
@@ -126,16 +126,16 @@ export class Conversation {
     // Ensure the players still exist.
     if ([...game.world.conversations.values()].find((c) => c.participants.has(player.id))) {
       const reason = `Player ${player.id} is already in a conversation`;
-      console.log(reason);
+      // console.log(reason);
       return { error: reason };
     }
     if ([...game.world.conversations.values()].find((c) => c.participants.has(invitee.id))) {
       const reason = `Player ${player.id} is already in a conversation`;
-      console.log(reason);
+      // console.log(reason);
       return { error: reason };
     }
     const conversationId = game.allocId('conversations');
-    console.log(`Creating conversation ${conversationId}`);
+    // console.log(`Creating conversation ${conversationId}`);
     game.world.conversations.set(
       conversationId,
       new Conversation({
@@ -274,7 +274,7 @@ export const conversationInputs = {
       if (!invitee) {
         throw new Error(`Invalid player ID: ${inviteeId}`);
       }
-      console.log(`Starting ${playerId} ${inviteeId}...`);
+      // console.log(`Starting ${playerId} ${inviteeId}...`);
       const { conversationId, error } = Conversation.start(game, now, player, invitee);
       if (!conversationId) {
         // TODO: pass it back to the client for them to show an error.

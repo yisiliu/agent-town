@@ -102,11 +102,56 @@ find "${dst}/aiTown" "${dst}/agent" "${dst}/engine" "${dst}/util" \
 #     transitioned the membership to walkingOver/participating.
 cp "${repo}/scripts/patches/agentInputs.ts" "${dst}/aiTown/agentInputs.ts"
 cp "${repo}/scripts/patches/conversation.ts" "${dst}/aiTown/conversation.ts"
+# agent-conversation.ts: routes ai-town's 3 town-conversation prompts
+# (start/continue/leave) through DeepSeek (callDeepseekAPI) instead of
+# Together's Llama 3 8B — 8B can't reliably produce CJK and falls back to
+# pinyin. Also includes the "reply in Chinese" directive baked into each
+# prompt array.
+cp "${repo}/scripts/patches/agent-conversation.ts" "${dst}/agent/conversation.ts"
+# agent-embeddingsCache.ts + agent-memory.ts: gated swap to MiniMax
+# embo-01 embeddings (1536-dim, Chinese-native) via
+# MINIMAX_EMBEDDINGS_ENABLED=1. Gate-off falls back to ai-town's
+# util/llm fetchEmbedding* for upstream-test compatibility.
+cp "${repo}/scripts/patches/agent-embeddingsCache.ts" "${dst}/agent/embeddingsCache.ts"
+cp "${repo}/scripts/patches/agent-memory.ts" "${dst}/agent/memory.ts"
 
+# Hardcode EMBEDDING_DIMENSION to 1536 (MiniMax embo-01). The schema's
+# memoryEmbeddings vector index reads this constant; flipping it
+# requires wiping memoryEmbeddings + embeddingsCache first
+# (convex/ours/mutations/wipeEmbeddings) since Convex won't migrate a
+# dim change while rows exist at the old dim.
+#
+# Also remove ai-town's "EMBEDDING_DIMENSION must be 768 for Together.ai"
+# runtime guard inside getLLMConfig(). We use Together for chat (Llama) but
+# MiniMax for embeddings, so the guard's invariant doesn't hold for us
+# and it would block every chatCompletion call. (The guard is 3 lines:
+# the `if (EMBEDDING_DIMENSION !== TOGETHER_EMBEDDING_DIMENSION) {`,
+# the throw, and the closing `}`.)
 sed -i.bak -E \
-  -e 's/^export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;$/export const EMBEDDING_DIMENSION: number = TOGETHER_EMBEDDING_DIMENSION;/' \
-  -e 's/^const TOGETHER_EMBEDDING_DIMENSION = 768;$/const TOGETHER_EMBEDDING_DIMENSION = 1024;/' \
+  -e 's/^export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;$/export const EMBEDDING_DIMENSION: number = 1536;/' \
   "${dst}/util/llm.ts"
+# Strip the dim guard (3 consecutive lines).
+perl -i -0pe 's/    if \(EMBEDDING_DIMENSION !== TOGETHER_EMBEDDING_DIMENSION\) \{\n      throw new Error\(.EMBEDDING_DIMENSION must be 768 for Together\.ai.\);\n    \}\n//' "${dst}/util/llm.ts"
+# Short-circuit detectMismatchedLLMProvider — it pattern-matches a hardcoded
+# provider→dim table and panics on init when our dim (1536, MiniMax) is set
+# but OPENAI_API_KEY is absent. Our setup uses DeepSeek + MiniMax via our
+# own clients, so the check is wrong for us.
+perl -i -pe 's|^(export function detectMismatchedLLMProvider\(\) \{)$|$1\n  return;|' "${dst}/util/llm.ts"
+
+# Suppress ai-town's verbose per-tick / per-event logs that push the
+# runStep action past Convex's 256-line log cap (and bury real errors
+# under chatter). Each substitution is idempotent — it prefixes a bare
+# console.* line with `// `, and lines already starting with `//` are
+# skipped by the leading-whitespace anchor.
+perl -i -pe 's|^(\s*)(console\.debug\(`Simulated from )|$1// $2|' "${dst}/engine/abstractGame.ts"
+perl -i -0pe 's|(\s*)if \(bufferSize > 0\) \{\n\s*console\.debug\(\n\s*`Packed \$\{Object\.entries\(historicalLocations\)\.length\} history buffers in \$\{\(\n\s*bufferSize / 1024\n\s*\)\.toFixed\(2\)\}KiB\.`,\n\s*\);\n\s*\}|$1// (suppressed — see sync-ai-town.sh for why)|' "${dst}/aiTown/game.ts"
+# Sweep: comment out every `console.log(` in the three noisiest ai-town
+# files. These are all per-event logs (pathfinding failures, agent
+# walking, conversation start/leave, accept/reject invite, etc.) that
+# fire constantly during normal play.
+for f in "${dst}/aiTown/agent.ts" "${dst}/aiTown/conversation.ts" "${dst}/aiTown/player.ts"; do
+  perl -i -pe 's|^(\s*)(console\.log\()|$1// $2|' "$f"
+done
 rm -f "${dst}/util/llm.ts.bak"
 
 # townHooks.ts lives under ours/ on the source side; mirror that.

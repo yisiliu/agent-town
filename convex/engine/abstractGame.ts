@@ -84,7 +84,10 @@ export abstract class AbstractGame {
     const engineUpdate = { engine, completedInputs, expectedGenerationNumber };
     await this.saveStep(ctx, engineUpdate);
 
-    console.debug(`Simulated from ${startTs} to ${currentTs} (${currentTs - startTs}ms)`);
+    // Suppressed: per-step debug log; fires ~10× per runStep so it pushes
+    // the action past Convex's 256-line log cap when combined with the
+    // per-agent operation-start logs in aiTown/agent.ts.
+    // console.debug(`Simulated from ${startTs} to ${currentTs} (${currentTs - startTs}ms)`);
   }
 }
 

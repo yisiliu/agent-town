@@ -118,7 +118,7 @@ export class Player {
       }
       const route = findRoute(game, now, this, pathfinding.destination);
       if (route === null) {
-        console.log(`Failed to route to ${JSON.stringify(pathfinding.destination)}`);
+        // console.log(`Failed to route to ${JSON.stringify(pathfinding.destination)}`);
         stopPlayer(this);
       } else {
         if (route.newDestination) {
