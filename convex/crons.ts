@@ -25,6 +25,18 @@ crons.interval(
   { minutes: 1 },
   ref.ours.crons.interactionTick.default,
 );
+
+// Engine watchdog — re-registered as a MUTATION instead of an action.
+// All cron-scheduled actions on this deployment have been failing
+// transient since 14:04 on 2026-05-22 (every minute, 0ms, 3/3 crons
+// dead). Convex docs guarantee mutations are auto-retried on
+// transient platform errors; actions are not. This routes around
+// the broken action-cron dispatch path.
+crons.interval(
+  'engine-watchdog',
+  { minutes: 1 },
+  ref.ours.crons.engineWatchdogMutation.default,
+);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default crons;

@@ -24,6 +24,7 @@ import { instructorSessions } from './instructorSessions';
 import { agentDailySpend } from './agentDailySpend';
 import { worldState } from './worldState';
 import { uploadResults } from './uploadResults';
+import { engineWatchdog } from './engineWatchdog';
 
 export const ourTables = {
   twins,
@@ -52,4 +53,5 @@ export const ourTables = {
   agentDailySpend,
   worldState,
   uploadResults,
+  engineWatchdog,
 };
