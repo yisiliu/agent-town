@@ -20,14 +20,60 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
 
-Portions of this project (everything under ai-town-fork/ that appears in
-ai-town-fork/UPSTREAM_FILES.txt) are derived from a16z-infra/ai-town,
-which is also distributed under the MIT License:
+===============================================================================
+Third-party components
+===============================================================================
 
-  Copyright (c) 2023 a16z-infra
+This repository bundles or derives from the following third-party works.
+Each is distributed under its own license; their original notices are
+preserved in the locations indicated.
 
-The upstream license text is preserved verbatim at ai-town-fork/LICENSE.
-Modifications to upstream files are annotated with `# EXEMPT: <reason>`
-entries in ai-town-fork/UPSTREAM_FILES.txt.
+1. a16z-infra/ai-town  --  MIT License
+   Copyright (c) 2023 a16z-infra
+   https://github.com/a16z-infra/ai-town
+
+   Scope: everything listed in ai-town-fork/UPSTREAM_FILES.txt.
+   Full license text: ai-town-fork/LICENSE.
+   Modifications to upstream files are marked with `# EXEMPT: <reason>`
+   annotations in ai-town-fork/UPSTREAM_FILES.txt.
+
+2. FastIntegerCompression.js  --  Apache License 2.0
+   Copyright the authors. https://github.com/lemire/FastIntegerCompression.js
+   In-repo paths:
+     - convex/util/FastIntegerCompression.ts
+     - ai-town-fork/convex/util/FastIntegerCompression.ts
+   Full license header preserved at the top of each file.
+
+3. xxhash (Jason3S/xxhash)  --  MIT License
+   Copyright (c) 2019 Jason Dent. https://github.com/Jason3S/xxhash
+   In-repo paths:
+     - convex/util/xxhash.ts
+     - ai-town-fork/convex/util/xxhash.ts
+   Full license header preserved at the top of each file.
+
+4. pixi-viewport  --  MIT License
+   Copyright (c) 2018 Patrick Brouwer.
+   https://github.com/davidfig/pixi-viewport
+   In-repo path: ai-town-fork/src/components/PixiViewport.tsx (PixiComponent
+   wrapper). License header preserved at the top of the file.
+
+
+===============================================================================
+Art assets
+===============================================================================
+
+Art assets inherited from upstream ai-town are credited in the "Other
+credits" section of ai-town-fork/README.md, including:
+
+  - George Bailey  --  https://opengameart.org/content/16x16-game-assets
+  - hilau           --  https://opengameart.org/content/16x16-rpg-tileset
+  - ansimuz         --  https://opengameart.org/content/tiny-rpg-forest
+  - Mounir Tohami   --  https://mounirtohami.itch.io/pixel-art-gui-elements
+
+Refer to the respective source pages for the original licenses.
+
+Additional tile assets added by this fork
+(`ai-town-fork/public/assets/MainTileMap.png`, `NewMap.png`,
+`exterior.png`): provenance and license to be confirmed; see issue
+tracker for status.
