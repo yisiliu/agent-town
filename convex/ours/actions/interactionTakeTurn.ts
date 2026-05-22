@@ -176,7 +176,16 @@ export default internalAction({
       // turn.text is the PUBLIC `say` (visible to other agents per visibility
       // rules); turn.data carries everything including the private `thinking`.
       const d = (parsed.data as Record<string, unknown>) ?? {};
-      const sayField = typeof d.say === 'string' ? d.say : '';
+      let sayField = typeof d.say === 'string' ? d.say : '';
+      // 警下 silence: in sheriff-claim phase, a player who decides NOT to
+      // run shouldn't broadcast a speech to other players. The rules-side
+      // applyTurn already advances the cursor based on `data.run`; we
+      // just clear the public text so the transcript stays quiet for
+      // non-candidates. The final tally line (单独上警 / 全员上警 / 无人上警)
+      // gets pushed to publicLog by the rules handler.
+      if (plan.phase === 'sheriff-claim' && plan.kind === 'sheriff-claim' && d.run !== true) {
+        sayField = '';
+      }
       // 自爆 override — if the wolf returned self_explode:true, the parser
       // already filtered to wolf-eligible phases. Write a 'self-explode'
       // turn (visibility=public) regardless of the original plan kind.

@@ -417,6 +417,13 @@ function visibleTurnsToTranscript(
   if (turns.length === 0) return '(no prior turns)';
   return turns
     .slice(-30)
+    .filter((t) => {
+      // Drop silent turns (e.g. sheriff-claim with run=false produces empty
+      // text — the player decided 警下 and didn't broadcast anything).
+      // Without this filter the transcript fills with empty `Alice: ` lines.
+      if (t.kind === 'sheriff-claim' && (!t.text || !t.text.trim())) return false;
+      return true;
+    })
     .map((t) => {
       const who = t.actorTwinId
         ? nameMap[t.actorTwinId as unknown as string] ?? (t.actorTwinId as unknown as string)
@@ -472,10 +479,12 @@ CANDIDATES so far this round: ${candidatesSoFar}
 
 ${roleHint}
 
-如果你上警，你的发言（"say"）会被所有玩家看到——它就是你的竞选演说。1-2 句话，给出身份/立场/为什么应该选你。
-如果你警下，可以简短说一句解释，或者直接 say "我警下" 即可。${explodeOption}
+**如果你上警 (run = true)**：你的发言 ("say") 会被所有玩家看到——它就是你的竞选演说。1-2 句话，给出身份/立场/为什么应该选你。
+**如果你警下 (run = false)**：不需要发言，把 "say" 留空 (""). 警下是私下的决定，公屏上只会有「XX 警下」一行系统提示。${explodeOption}
 
-Respond JSON: {"thinking":"...","say":"<speech | '警下' | '我自爆'>","action":{"run": true | false${youAreWolf ? ' | "self_explode": true' : ''}}}`;
+注意：上警就等于报名当警长候选人，候选人不参与后续的警长投票（投票权只属于警下的人）。所以选不选要慎重。
+
+Respond JSON: {"thinking":"...","say":"<上警时的发言；警下时留空 ''>","action":{"run": true | false${youAreWolf ? ' | "self_explode": true' : ''}}}`;
   }
 
   if (phase === 'sheriff-pk-speech' && kind === 'sheriff-pk-speech') {
