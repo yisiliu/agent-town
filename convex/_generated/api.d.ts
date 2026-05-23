@@ -36,6 +36,7 @@ import type * as engine_historicalObject from "../engine/historicalObject.js";
 import type * as init from "../init.js";
 import type * as messages from "../messages.js";
 import type * as music from "../music.js";
+import type * as ours_actions_auditLlmSpend from "../ours/actions/auditLlmSpend.js";
 import type * as ours_actions_chatWithTwin from "../ours/actions/chatWithTwin.js";
 import type * as ours_actions_dedupActiveTwins from "../ours/actions/dedupActiveTwins.js";
 import type * as ours_actions_dedupWorldPlayers from "../ours/actions/dedupWorldPlayers.js";
@@ -47,6 +48,7 @@ import type * as ours_actions_probeMinimaxEmbedding from "../ours/actions/probeM
 import type * as ours_actions_promptInjectionScan from "../ours/actions/promptInjectionScan.js";
 import type * as ours_actions_refreshAllInWorld from "../ours/actions/refreshAllInWorld.js";
 import type * as ours_actions_removeNpcsAndPromoteStudents from "../ours/actions/removeNpcsAndPromoteStudents.js";
+import type * as ours_actions_removeSeededNpcs from "../ours/actions/removeSeededNpcs.js";
 import type * as ours_actions_runTwinScans from "../ours/actions/runTwinScans.js";
 import type * as ours_actions_seedNpcCards from "../ours/actions/seedNpcCards.js";
 import type * as ours_actions_seedTownPlayers from "../ours/actions/seedTownPlayers.js";
@@ -100,6 +102,7 @@ import type * as ours_mutations_clearTownEvent from "../ours/mutations/clearTown
 import type * as ours_mutations_clearUploadResult from "../ours/mutations/clearUploadResult.js";
 import type * as ours_mutations_createPendingTwin from "../ours/mutations/createPendingTwin.js";
 import type * as ours_mutations_createSession from "../ours/mutations/createSession.js";
+import type * as ours_mutations_deleteTwinByPseudonym from "../ours/mutations/deleteTwinByPseudonym.js";
 import type * as ours_mutations_devForceFreezeWorld from "../ours/mutations/devForceFreezeWorld.js";
 import type * as ours_mutations_devForceResumeWorld from "../ours/mutations/devForceResumeWorld.js";
 import type * as ours_mutations_finalizeScan from "../ours/mutations/finalizeScan.js";
@@ -110,10 +113,12 @@ import type * as ours_mutations_instructorAuthenticate from "../ours/mutations/i
 import type * as ours_mutations_instructorRegister from "../ours/mutations/instructorRegister.js";
 import type * as ours_mutations_issueCode from "../ours/mutations/issueCode.js";
 import type * as ours_mutations_kickEngine from "../ours/mutations/kickEngine.js";
+import type * as ours_mutations_leaveTwinsFromTown from "../ours/mutations/leaveTwinsFromTown.js";
 import type * as ours_mutations_markSeededNpcsSynthetic from "../ours/mutations/markSeededNpcsSynthetic.js";
 import type * as ours_mutations_promoteTwinToAgent from "../ours/mutations/promoteTwinToAgent.js";
 import type * as ours_mutations_queueCreateAgentInline from "../ours/mutations/queueCreateAgentInline.js";
 import type * as ours_mutations_recordLlmCall from "../ours/mutations/recordLlmCall.js";
+import type * as ours_mutations_renameTwin from "../ours/mutations/renameTwin.js";
 import type * as ours_mutations_resumeWorld from "../ours/mutations/resumeWorld.js";
 import type * as ours_mutations_setInteractionInflight from "../ours/mutations/setInteractionInflight.js";
 import type * as ours_mutations_setTownEvent from "../ours/mutations/setTownEvent.js";
@@ -121,8 +126,12 @@ import type * as ours_mutations_startDungeonGame from "../ours/mutations/startDu
 import type * as ours_mutations_startInteraction from "../ours/mutations/startInteraction.js";
 import type * as ours_mutations_swapMap from "../ours/mutations/swapMap.js";
 import type * as ours_mutations_wipeEmbeddings from "../ours/mutations/wipeEmbeddings.js";
+import type * as ours_queries_auditCardIntros from "../ours/queries/auditCardIntros.js";
+import type * as ours_queries_conversationActivity from "../ours/queries/conversationActivity.js";
 import type * as ours_queries_debugPlayerLookup from "../ours/queries/debugPlayerLookup.js";
 import type * as ours_queries_defaultWorldStatus from "../ours/queries/defaultWorldStatus.js";
+import type * as ours_queries_dumpFullCard from "../ours/queries/dumpFullCard.js";
+import type * as ours_queries_dumpTwinHashes from "../ours/queries/dumpTwinHashes.js";
 import type * as ours_queries_engineState from "../ours/queries/engineState.js";
 import type * as ours_queries_getAgentDailySpend from "../ours/queries/getAgentDailySpend.js";
 import type * as ours_queries_getCachedLlmCall from "../ours/queries/getCachedLlmCall.js";
@@ -131,6 +140,7 @@ import type * as ours_queries_getInteraction from "../ours/queries/getInteractio
 import type * as ours_queries_getInteractionContext from "../ours/queries/getInteractionContext.js";
 import type * as ours_queries_getSession from "../ours/queries/getSession.js";
 import type * as ours_queries_getTownEvent from "../ours/queries/getTownEvent.js";
+import type * as ours_queries_inspectCard from "../ours/queries/inspectCard.js";
 import type * as ours_queries_instructorActiveInteractions from "../ours/queries/instructorActiveInteractions.js";
 import type * as ours_queries_instructorSession from "../ours/queries/instructorSession.js";
 import type * as ours_queries_instructorTownAgents from "../ours/queries/instructorTownAgents.js";
@@ -226,6 +236,7 @@ declare const fullApi: ApiFromModules<{
   init: typeof init;
   messages: typeof messages;
   music: typeof music;
+  "ours/actions/auditLlmSpend": typeof ours_actions_auditLlmSpend;
   "ours/actions/chatWithTwin": typeof ours_actions_chatWithTwin;
   "ours/actions/dedupActiveTwins": typeof ours_actions_dedupActiveTwins;
   "ours/actions/dedupWorldPlayers": typeof ours_actions_dedupWorldPlayers;
@@ -237,6 +248,7 @@ declare const fullApi: ApiFromModules<{
   "ours/actions/promptInjectionScan": typeof ours_actions_promptInjectionScan;
   "ours/actions/refreshAllInWorld": typeof ours_actions_refreshAllInWorld;
   "ours/actions/removeNpcsAndPromoteStudents": typeof ours_actions_removeNpcsAndPromoteStudents;
+  "ours/actions/removeSeededNpcs": typeof ours_actions_removeSeededNpcs;
   "ours/actions/runTwinScans": typeof ours_actions_runTwinScans;
   "ours/actions/seedNpcCards": typeof ours_actions_seedNpcCards;
   "ours/actions/seedTownPlayers": typeof ours_actions_seedTownPlayers;
@@ -290,6 +302,7 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/clearUploadResult": typeof ours_mutations_clearUploadResult;
   "ours/mutations/createPendingTwin": typeof ours_mutations_createPendingTwin;
   "ours/mutations/createSession": typeof ours_mutations_createSession;
+  "ours/mutations/deleteTwinByPseudonym": typeof ours_mutations_deleteTwinByPseudonym;
   "ours/mutations/devForceFreezeWorld": typeof ours_mutations_devForceFreezeWorld;
   "ours/mutations/devForceResumeWorld": typeof ours_mutations_devForceResumeWorld;
   "ours/mutations/finalizeScan": typeof ours_mutations_finalizeScan;
@@ -300,10 +313,12 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/instructorRegister": typeof ours_mutations_instructorRegister;
   "ours/mutations/issueCode": typeof ours_mutations_issueCode;
   "ours/mutations/kickEngine": typeof ours_mutations_kickEngine;
+  "ours/mutations/leaveTwinsFromTown": typeof ours_mutations_leaveTwinsFromTown;
   "ours/mutations/markSeededNpcsSynthetic": typeof ours_mutations_markSeededNpcsSynthetic;
   "ours/mutations/promoteTwinToAgent": typeof ours_mutations_promoteTwinToAgent;
   "ours/mutations/queueCreateAgentInline": typeof ours_mutations_queueCreateAgentInline;
   "ours/mutations/recordLlmCall": typeof ours_mutations_recordLlmCall;
+  "ours/mutations/renameTwin": typeof ours_mutations_renameTwin;
   "ours/mutations/resumeWorld": typeof ours_mutations_resumeWorld;
   "ours/mutations/setInteractionInflight": typeof ours_mutations_setInteractionInflight;
   "ours/mutations/setTownEvent": typeof ours_mutations_setTownEvent;
@@ -311,8 +326,12 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/startInteraction": typeof ours_mutations_startInteraction;
   "ours/mutations/swapMap": typeof ours_mutations_swapMap;
   "ours/mutations/wipeEmbeddings": typeof ours_mutations_wipeEmbeddings;
+  "ours/queries/auditCardIntros": typeof ours_queries_auditCardIntros;
+  "ours/queries/conversationActivity": typeof ours_queries_conversationActivity;
   "ours/queries/debugPlayerLookup": typeof ours_queries_debugPlayerLookup;
   "ours/queries/defaultWorldStatus": typeof ours_queries_defaultWorldStatus;
+  "ours/queries/dumpFullCard": typeof ours_queries_dumpFullCard;
+  "ours/queries/dumpTwinHashes": typeof ours_queries_dumpTwinHashes;
   "ours/queries/engineState": typeof ours_queries_engineState;
   "ours/queries/getAgentDailySpend": typeof ours_queries_getAgentDailySpend;
   "ours/queries/getCachedLlmCall": typeof ours_queries_getCachedLlmCall;
@@ -321,6 +340,7 @@ declare const fullApi: ApiFromModules<{
   "ours/queries/getInteractionContext": typeof ours_queries_getInteractionContext;
   "ours/queries/getSession": typeof ours_queries_getSession;
   "ours/queries/getTownEvent": typeof ours_queries_getTownEvent;
+  "ours/queries/inspectCard": typeof ours_queries_inspectCard;
   "ours/queries/instructorActiveInteractions": typeof ours_queries_instructorActiveInteractions;
   "ours/queries/instructorSession": typeof ours_queries_instructorSession;
   "ours/queries/instructorTownAgents": typeof ours_queries_instructorTownAgents;

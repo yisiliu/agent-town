@@ -130,6 +130,9 @@
 ./package.json
 ./postcss.config.js
 ./public/assets/32x32folk.png
+./public/assets/MainTileMap.png  # EXEMPT: AiBuddy map tile asset added by this fork
+./public/assets/NewMap.png       # EXEMPT: AiBuddy map tile asset added by this fork
+./public/assets/exterior.png     # EXEMPT: AiBuddy map tile asset added by this fork
 ./public/assets/background.mp3
 ./public/assets/fonts/upheaval_pro.ttf
 ./public/assets/fonts/vcr_osd_mono.ttf
