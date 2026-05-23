@@ -27,8 +27,12 @@ export default query({
       state: r.state,
       hasCard: r.cardId !== undefined,
       createdAt: r.createdAt,
-      isSynthetic: r.studentRealNameHash.startsWith('synth-') ||
-                   r.studentRealNameHash.startsWith('aitown:'),
+      // Only true synth-NPCs from seedNpcCards are tagged synthetic.
+      // The `aitown:<worldId>:...` prefix marks twins that were
+      // reconciled with an ai-town agent record during a re-promote
+      // — those are real student-uploaded twins, not AI-synthesised
+      // ones. Including aitown:* here mislabeled ~13 of 17 students.
+      isSynthetic: r.studentRealNameHash.startsWith('synth-'),
     }));
   },
 });
