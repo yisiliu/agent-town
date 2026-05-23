@@ -13,10 +13,10 @@ import { callDeepseekAPI } from '../ours/lib/deepseekClient';
 // the 8B model can't reliably produce CJK tokens — it falls back to pinyin.
 // Embeddings still go through Together via util/llm.ts. Model is env-tunable:
 // drop to `deepseek-v4-flash` if Pro's reasoning-mode latency is too slow.
-async function townChat(args: {
-  messages: LLMMessage[];
-  max_tokens: number;
-}): Promise<{ content: string }> {
+async function townChat(
+  ctx: ActionCtx,
+  args: { messages: LLMMessage[]; max_tokens: number; callType: string },
+): Promise<{ content: string }> {
   const [head, ...rest] = args.messages;
   const system = head?.role === 'system' ? (head.content ?? '') : '';
   const chat = (head?.role === 'system' ? rest : args.messages).map((m) => ({
@@ -29,6 +29,18 @@ async function townChat(args: {
     system,
     messages: chat,
   });
+  // Record cache hit/miss telemetry. Fire-and-forget mutation — best
+  // effort, no await on failure paths.
+  try {
+    await ctx.runMutation(internal.ours.mutations.recordCacheStats.default, {
+      callType: args.callType,
+      hitTokens: result.usage.cache_hit_tokens ?? 0,
+      missTokens: result.usage.cache_miss_tokens ?? Math.max(0, result.usage.input_tokens - (result.usage.cache_hit_tokens ?? 0)),
+      outputTokens: result.usage.output_tokens,
+    });
+  } catch {
+    /* metrics shouldn't break the call */
+  }
   return { content: result.text };
 }
 
@@ -99,9 +111,10 @@ export async function startConversationMessage(
   }
   messages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await townChat({
+  const { content } = await townChat(ctx, {
     messages,
     max_tokens: 300,
+    callType: 'conversation_start',
   });
   return trimContentPrefx(content, lastPrompt);
 }
@@ -171,9 +184,10 @@ export async function continueConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await townChat({
+  const { content } = await townChat(ctx, {
     messages: llmMessages,
     max_tokens: 300,
+    callType: 'conversation_continue',
   });
   return trimContentPrefx(content, lastPrompt);
 }
@@ -220,9 +234,10 @@ export async function leaveConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await townChat({
+  const { content } = await townChat(ctx, {
     messages: llmMessages,
     max_tokens: 300,
+    callType: 'conversation_leave',
   });
   return trimContentPrefx(content, lastPrompt);
 }

@@ -111,9 +111,16 @@ const LOCAL_OUTPUT_USD_PER_TOKEN = 0.28 / 1_000_000;
 export function estimateFrontierCostUsd(usage: {
   input_tokens: number;
   output_tokens: number;
+  cache_hit_tokens?: number;
+  cache_miss_tokens?: number;
 }): number {
+  // Cache-hit tokens bill at 10% of miss rate. Default to "all miss"
+  // when fields absent (older callers).
+  const hit = usage.cache_hit_tokens ?? 0;
+  const miss = usage.cache_miss_tokens ?? Math.max(0, usage.input_tokens - hit);
   return (
-    usage.input_tokens * FRONTIER_INPUT_USD_PER_TOKEN +
+    miss * FRONTIER_INPUT_USD_PER_TOKEN +
+    hit * FRONTIER_INPUT_USD_PER_TOKEN * 0.1 +
     usage.output_tokens * FRONTIER_OUTPUT_USD_PER_TOKEN
   );
 }
@@ -121,9 +128,14 @@ export function estimateFrontierCostUsd(usage: {
 export function estimateLocalCostUsd(usage: {
   input_tokens: number;
   output_tokens: number;
+  cache_hit_tokens?: number;
+  cache_miss_tokens?: number;
 }): number {
+  const hit = usage.cache_hit_tokens ?? 0;
+  const miss = usage.cache_miss_tokens ?? Math.max(0, usage.input_tokens - hit);
   return (
-    usage.input_tokens * LOCAL_INPUT_USD_PER_TOKEN +
+    miss * LOCAL_INPUT_USD_PER_TOKEN +
+    hit * LOCAL_INPUT_USD_PER_TOKEN * 0.1 +
     usage.output_tokens * LOCAL_OUTPUT_USD_PER_TOKEN
   );
 }
@@ -162,7 +174,12 @@ export interface LLMCallArgs {
 
 export interface LLMCallResult {
   text: string;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_hit_tokens?: number;
+    cache_miss_tokens?: number;
+  };
 }
 
 export interface RouteDeps {

@@ -21,10 +21,10 @@ async function embedOne(text: string) {
 // importance scoring, and reflection through DeepSeek so they're
 // Chinese-fluent. Llama 3 8B (the upstream default) can't reliably
 // produce CJK and would leave memories in pinyin/English.
-async function townChat(args: {
-  messages: LLMMessage[];
-  max_tokens: number;
-}): Promise<{ content: string }> {
+async function townChat(
+  ctx: ActionCtx,
+  args: { messages: LLMMessage[]; max_tokens: number; callType: string },
+): Promise<{ content: string }> {
   const [head, ...rest] = args.messages;
   const system = head?.role === 'system' ? (head.content ?? '') : '';
   const chat = (head?.role === 'system' ? rest : args.messages).map((m) => ({
@@ -37,6 +37,16 @@ async function townChat(args: {
     system,
     messages: chat,
   });
+  try {
+    await ctx.runMutation(internal.ours.mutations.recordCacheStats.default, {
+      callType: args.callType,
+      hitTokens: result.usage.cache_hit_tokens ?? 0,
+      missTokens: result.usage.cache_miss_tokens ?? Math.max(0, result.usage.input_tokens - (result.usage.cache_hit_tokens ?? 0)),
+      outputTokens: result.usage.output_tokens,
+    });
+  } catch {
+    /* metrics best effort */
+  }
   return { content: result.text };
 }
 import { GameId, agentId, conversationId, playerId } from '../aiTown/ids';
@@ -106,14 +116,15 @@ export async function rememberConversation(
     });
   }
   llmMessages.push({ role: 'user', content: 'Summary:' });
-  const { content } = await townChat({
+  const { content } = await townChat(ctx, {
     messages: llmMessages,
     max_tokens: 500,
+    callType: 'memory_summary',
   });
   const description = `Conversation with ${otherPlayer.name} at ${new Date(
     data.conversation._creationTime,
   ).toLocaleString()}: ${content}`;
-  const importance = await calculateImportance(description);
+  const importance = await calculateImportance(ctx, description);
   const { embedding } = await embedOne(description);
   authors.delete(player.id as GameId<'players'>);
   await ctx.runMutation(selfInternal.insertMemory, {
@@ -291,8 +302,9 @@ export const loadMessages = internalQuery({
   },
 });
 
-async function calculateImportance(description: string) {
-  const { content: importanceRaw } = await townChat({
+async function calculateImportance(ctx: ActionCtx, description: string) {
+  const { content: importanceRaw } = await townChat(ctx, {
+    callType: 'memory_importance',
     messages: [
       {
         role: 'user',
@@ -412,7 +424,8 @@ async function reflectOnMemories(
     'Example: [{insight: "...", statementIds: [1,2]}, {insight: "...", statementIds: [1]}, ...]',
   );
 
-  const { content: reflection } = await townChat({
+  const { content: reflection } = await townChat(ctx, {
+    callType: 'memory_reflection',
     messages: [
       {
         role: 'user',
@@ -426,7 +439,7 @@ async function reflectOnMemories(
     const insights = JSON.parse(reflection) as { insight: string; statementIds: number[] }[];
     const memoriesToSave = await asyncMap(insights, async (item) => {
       const relatedMemoryIds = item.statementIds.map((idx: number) => memories[idx]._id);
-      const importance = await calculateImportance(item.insight);
+      const importance = await calculateImportance(ctx, item.insight);
       const { embedding } = await embedOne(item.insight);
       console.debug('adding reflection memory...', item.insight);
       return {

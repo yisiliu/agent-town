@@ -80,7 +80,14 @@ export async function callDeepseekAPI(
 
 interface DeepseekResponse {
   choices?: Array<{ message?: { content?: string } }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    // DeepSeek-specific: tokens served from the prompt-prefix cache
+    // (10× cheaper than miss). Split should equal prompt_tokens.
+    prompt_cache_hit_tokens?: number;
+    prompt_cache_miss_tokens?: number;
+  };
 }
 
 // Exported for unit tests — the OpenAI-shaped reply parser is the
@@ -95,11 +102,18 @@ export function parseDeepseekReply(raw: unknown): LLMCallResult {
   if (typeof text !== 'string') {
     throw new Error('deepseek: missing choices[0].message.content');
   }
+  const promptTokens = json.usage?.prompt_tokens ?? 0;
+  const hit = json.usage?.prompt_cache_hit_tokens ?? 0;
+  // DeepSeek reports `prompt_cache_miss_tokens` separately; default to
+  // `prompt_tokens - hit` when the field is missing.
+  const miss = json.usage?.prompt_cache_miss_tokens ?? Math.max(0, promptTokens - hit);
   return {
     text,
     usage: {
-      input_tokens: json.usage?.prompt_tokens ?? 0,
+      input_tokens: promptTokens,
       output_tokens: json.usage?.completion_tokens ?? 0,
+      cache_hit_tokens: hit,
+      cache_miss_tokens: miss,
     },
   };
 }
