@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PixiGame from './PixiGame.tsx';
 
 import { useElementSize } from 'usehooks-ts';
@@ -41,6 +41,24 @@ export default function Game() {
   // camera by calling viewportRef.current.animate(...).
   const viewportRef = useRef<Viewport | undefined>(undefined);
 
+  // Browser fullscreen toggle. Targets documentElement so the whole
+  // page (including resident list + PlayerDetails) goes immersive;
+  // browser chrome hides. Listen to fullscreenchange so the button
+  // label flips when the user exits via Esc.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+
   if (!worldId || !engineId || !game) {
     return null;
   }
@@ -76,6 +94,16 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
               </Stage>
             </div>
           </div>
+          {/* Fullscreen toggle. Absolute-positioned over the game so it
+              doesn't reflow the grid; pointer-events lets PixiJS still
+              receive clicks where the button isn't. */}
+          <button
+            onClick={toggleFullscreen}
+            className="absolute top-2 right-2 z-10 rounded bg-brown-800/80 px-2 py-1 text-xs text-brown-100 hover:bg-brown-700 pointer-events-auto"
+            title={isFullscreen ? '退出全屏 (Esc)' : '全屏'}
+          >
+            {isFullscreen ? '⛶ 退出' : '⛶ 全屏'}
+          </button>
         </div>
         {/* Right column area */}
         <div

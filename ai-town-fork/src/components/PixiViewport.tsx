@@ -42,6 +42,17 @@ export default PixiComponent('Viewport', {
     // smaller worlds (e.g. pokeworld at 720px) — which silently breaks
     // clampZoom and locks the camera at one fixed level.
     const minScale = Math.min(0.5, (props.screenWidth * 1.0) / props.worldWidth);
+    // Default zoom: pick a scale that shows roughly the whole map with
+    // some margin, then center on the map. Falls back to setZoom(2.0)
+    // if the world dimensions look wrong.
+    const fitScale = Math.min(
+      props.screenWidth / props.worldWidth,
+      props.screenHeight / props.worldHeight,
+    );
+    const initialScale = fitScale > 0
+      ? Math.max(minScale, Math.min(2.0, fitScale * 0.95))
+      : 2.0;
+
     viewport
       .drag()
       .pinch({})
@@ -52,7 +63,8 @@ export default PixiComponent('Viewport', {
         minScale,
         maxScale: 6.0,
       })
-      .setZoom(2.0);
+      .setZoom(initialScale)
+      .moveCenter(props.worldWidth / 2, props.worldHeight / 2);
     return viewport;
   },
   applyProps(viewport, oldProps: any, newProps: any) {
