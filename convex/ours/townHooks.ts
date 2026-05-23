@@ -48,7 +48,12 @@ export async function isTownTickAllowed(ctx: ActionCtxLike): Promise<boolean> {
 // runStep iterations so off-hours ambient activity is cheap. The
 // instructor flips state via the existing freeze/resume buttons.
 const PACE_LIVE_MS = 2500;
-const PACE_FROZEN_MS = 30_000;
+// Frozen pace bumped 30s → 120s on 2026-05-23 to cut idle LLM cost
+// roughly 4×. Frozen mode is for "24/7 alive but nobody watching" —
+// at this rate the engine still ticks (~1/min visible motion) so
+// students who drop in casually still see life, but the eval cadence
+// is low enough to keep daily flash spend manageable.
+const PACE_FROZEN_MS = 120_000;
 
 export function stepDurationMsFor(status: WorldStatusShape | null): number {
   if (!status) return PACE_LIVE_MS;

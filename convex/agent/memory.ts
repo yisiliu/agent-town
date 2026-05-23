@@ -385,11 +385,15 @@ async function reflectOnMemories(
     },
   );
 
-  // should only reflect if lastest 100 items have importance score of >500
+  // Threshold raised 500 → 2000 on 2026-05-23. Each reflection burns
+  // ~500 output tokens of LLM time; at 500 we were firing too often
+  // and contributing meaningfully to daily flash spend. 2000 means
+  // reflections fire roughly 4× less often without removing them as
+  // a learning signal.
   const sumOfImportanceScore = memories
     .filter((m) => m._creationTime > (lastReflectionTs ?? 0))
     .reduce((acc, curr) => acc + curr.importance, 0);
-  const shouldReflect = sumOfImportanceScore > 500;
+  const shouldReflect = sumOfImportanceScore > 2000;
 
   if (!shouldReflect) {
     return false;
