@@ -117,14 +117,32 @@ export default function UploadPage() {
           <p className="font-medium text-green-800 dark:text-green-100">
             数字分身已创建。请保存以下三个访问码——它们只会显示一次。
           </p>
-          <dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-1 font-mono text-base">
-            <dt className="text-neutral-500">观察</dt>
-            <dd>{result.codes.spectate}</dd>
-            <dt className="text-neutral-500">控制</dt>
+          <dl className="mt-3 grid grid-cols-[140px_1fr] gap-y-2 font-mono text-base">
+            <dt className="text-neutral-500">
+              控制码
+              <div className="font-sans text-xs text-neutral-500">
+                现在去 <a href="/chat" className="underline">/chat</a> 跟你的分身私聊
+              </div>
+            </dt>
             <dd>{result.codes.control}</dd>
-            <dt className="text-neutral-500">编辑</dt>
+            <dt className="text-neutral-500">
+              观察码
+              <div className="font-sans text-xs text-neutral-500">
+                分享给同学让他们看你的分身怎么聊（未来 feature）
+              </div>
+            </dt>
+            <dd>{result.codes.spectate}</dd>
+            <dt className="text-neutral-500">
+              编辑码
+              <div className="font-sans text-xs text-neutral-500">
+                日后改 card.md 时用（未来 feature）
+              </div>
+            </dt>
             <dd>{result.codes.edit}</dd>
           </dl>
+          <p className="mt-3 text-xs text-neutral-600 dark:text-neutral-400">
+            截图 / 写下来。关闭页面后再也看不到。控制码丢了就找不回你的分身了。
+          </p>
           <button
             type="button"
             onClick={acknowledge}
@@ -137,7 +155,7 @@ export default function UploadPage() {
 
       {confirmed && (
         <p className="text-sm text-neutral-600">
-          已确认。你可以关闭此页面。
+          已确认。现在你可以去 <a href="/chat" className="underline">/chat</a> 跟自己的分身聊天，或打开 <a href="https://ai-town-fork.vercel.app" className="underline" target="_blank" rel="noreferrer">2D 小镇</a> 找到它。
         </p>
       )}
     </main>

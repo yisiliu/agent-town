@@ -1,9 +1,14 @@
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
 
-// Set the active "town event" — a bit of context prepended to every alive
-// agent's identity. Class demo: instructor changes the event, the town's
-// conversations shift in ~30s as agents react.
+// Set the active "town event" — a bit of context APPENDED to every
+// alive agent's identity as a low-weight tail note. Class demo:
+// instructor changes the event, the town's conversations shift in
+// ~30s as agents react.
+//
+// Append (not prepend) is intentional: putting the event line at the
+// top of identity gave it primary-persona weight and the audit (2026-
+// 05-23) found all conversations converging on the event topic.
 //
 // If an event is already set, the new event replaces it (without
 // re-snapshotting originals — the existing snapshot stays as the source
@@ -26,7 +31,7 @@ export default mutation({
 
     const now = Date.now();
     const expiresAt = args.durationMs ? now + args.durationMs : undefined;
-    const prefix = `[当前小镇事件: ${args.eventText.trim()}]\n\n`;
+    const suffix = `\n\n---\n当前小镇背景：${args.eventText.trim()}\n（这只是当前环境，不要让它主导你的话题或语气。按你 card 里的真实身份说话。）`;
 
     // Load all agentDescriptions for this world.
     const allDescs = await ctx.db
@@ -49,7 +54,7 @@ export default mutation({
         originals[key] = desc.identity;
       }
       const base = originals[key];
-      await ctx.db.patch(desc._id, { identity: `${prefix}${base}` });
+      await ctx.db.patch(desc._id, { identity: `${base}${suffix}` });
       touched += 1;
     }
 

@@ -41,8 +41,12 @@ export const AWKWARD_CONVERSATION_TIMEOUT = 60_000; // more time locally
 export const MAX_CONVERSATION_DURATION = 10 * 60_000; // more time locally
 // export const MAX_CONVERSATION_DURATION = 2 * 60_000;
 
-// Leave a conversation if it has more than 8 messages;
-export const MAX_CONVERSATION_MESSAGES = 8;
+// Leave a conversation if it has more than 5 messages. Bumped down
+// from 8 on 2026-05-23 — long pairwise dialogues monopolized the
+// "active conversations" pool while other agents idled; shorter
+// exchanges let more pairs of agents talk in the same wall-clock
+// window.
+export const MAX_CONVERSATION_MESSAGES = 5;
 
 // Wait for 1s after sending an input to the engine. We can remove this
 // once we can await on an input being processed.

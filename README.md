@@ -1,18 +1,41 @@
 # agent-town
 
-Agent-town 是 [a16z ai-town](https://github.com/a16z-infra/ai-town) 的中文课堂 fork。学生通过上传 `card.md` 注册数字分身，引擎依据卡片驱动 agent 在 2D 小镇中行动、对话与反思。
+[a16z ai-town](https://github.com/a16z-infra/ai-town) 的中文课堂 fork。学生上传 `card.md`，AI 按这份卡片在 2D 小镇里替你"过日子"——闲聊、社交、反思。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Backend: Convex](https://img.shields.io/badge/backend-Convex-blue)](https://convex.dev)
 [![Forked from a16z-infra/ai-town (MIT)](https://img.shields.io/badge/fork%20of-a16z%2Fai--town%20(MIT)-purple)](https://github.com/a16z-infra/ai-town)
 
-## 与上游的差异
+## 学生在这里做什么
 
-- 中文化：对话、UI、prompt 模板全部中文。
-- LLM 替换：对话走 DeepSeek V4 Pro/Flash，embedding 走 MiniMax `embo-01`，注入扫描走 Together `Llama-Guard-3-8B`。
-- 学生与教师界面：独立的 Next.js shell 提供 `card.md` 上传 (`/upload`)、与自身分身私聊 (`/chat`)、教师控制台 (`/instructor`)。
-- 双档运行节奏：worldState `live` 时 `stepDuration = 2500 ms`，`frozen` 时 `30000 ms`。教师通过 `/instructor` 切换。
-- 引擎自愈：watchdog cron 检测 `engine.generationNumber` 在 120 秒内未推进时执行 stop+start 重启，覆盖 Convex transient 导致 self-scheduling action 链断裂的失败模式（详见 `docs/working-notes/engine-freeze-rca.md`）。
+1. 写一份 `card.md`（你的"数字分身"档案，[格式见此](docs/card-md-spec.md)）
+2. 上传到 [/upload](https://shell-coral.vercel.app/upload)，AI 按你的设定开始"扮演你"
+3. 在 [2D 小镇](https://ai-town-fork.vercel.app) 看你的分身跟其他同学的分身聊天、社交
+4. 想给项目加 feature？看 [ASSIGNMENT.md](ASSIGNMENT.md)——20 个待认领的 issue（货币 / 种地 / 婚姻 / 任务系统 …）
+
+## 跑本地版要花多少钱
+
+| 服务 | 用途 | 起步成本 |
+|---|---|---|
+| [Convex](https://convex.dev) | 后端 + 实时数据 | **免费**（开发用 free tier 足够） |
+| [DeepSeek](https://platform.deepseek.com) | 对话 + 反思 LLM（V4 Flash 为主） | ~¥10/月（按本仓库流量估算） |
+| [MiniMax](https://platform.minimaxi.com) | 中文 embedding | 几乎为零（仅上传时调） |
+| [Together](https://together.ai) | Llama Guard 注入扫描 | ~$5 一次充值能用整个学期 |
+
+DeepSeek 国内身份证就能注册，支持微信/支付宝充值。MiniMax 同理。Together 需要海外支付方式（或者你可以临时禁用，详见 [`docs/running-locally.md`](docs/running-locally.md) §4）。
+
+## 与上游 ai-town 的技术差异
+
+<details>
+<summary>展开（给维护者看）</summary>
+
+- LLM 替换：DeepSeek V4 Flash（对话/反思）+ MiniMax `embo-01`（embedding，1536 维）+ Together `Llama-Guard-3-8B`（注入扫描）
+- 中文化：对话、UI、prompt 模板全部中文
+- 双档运行节奏：worldState `live` 时 `stepDuration = 2500 ms`，`frozen` 时 `90000 ms`。教师通过 `/instructor` 切换
+- 引擎自愈：watchdog cron 检测 `engine.generationNumber` 在 120 秒内未推进时执行 stop+start 重启，覆盖 Convex transient 导致 self-scheduling action 链断裂的失败模式（详见 `docs/working-notes/engine-freeze-rca.md`）
+- 学生 / 教师独立 Next.js shell：`/upload`、`/chat`、`/instructor`、`/spec`
+
+</details>
 
 ## 仓库结构
 

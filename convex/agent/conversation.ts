@@ -74,6 +74,11 @@ export async function startConversationMessage(
   const systemLines = [
     `You are ${player.name}, and you just started a conversation with ${otherPlayer.name}.`,
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
+    // Anti-mirror directive. Audit found agents converging onto whoever
+    // had the strongest persona (古风文人 attractor) and abandoning
+    // their own card.md. Keep this short so the cache prefix doesn't
+    // bloat unnecessarily.
+    `如果对方的语气、时代背景或身份设定跟你 card 不符——保持你自己的腔调，按你 card 的真实身份说话，不要被对方拉走。也不要每句都用"（动作）...台词"的舞台体——日常聊天就用日常口吻。`,
     ...agentPrompts(otherPlayer, agent, otherAgent ?? null),
   ];
 
@@ -140,6 +145,8 @@ export async function continueConversationMessage(
   const systemLines = [
     `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
+    // Anti-mirror directive — see startConversationMessage.
+    `如果对方的语气、时代背景或身份设定跟你 card 不符——保持你自己的腔调，按你 card 的真实身份说话，不要被对方拉走。也不要每句都用"（动作）...台词"的舞台体——日常聊天就用日常口吻。`,
     ...agentPrompts(otherPlayer, agent, otherAgent ?? null),
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `DO NOT greet them again. Do NOT use the word "Hey" too often. Your response should be brief and within 200 characters.`,
