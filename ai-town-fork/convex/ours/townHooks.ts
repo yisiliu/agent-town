@@ -48,7 +48,7 @@ export async function isTownTickAllowed(ctx: ActionCtxLike): Promise<boolean> {
 // runStep iterations so off-hours ambient activity is cheap. The
 // instructor flips state via the existing freeze/resume buttons.
 const PACE_LIVE_MS = 2500;
-const PACE_FROZEN_MS = 90_000;
+const PACE_FROZEN_MS = 30_000;
 
 export function stepDurationMsFor(status: WorldStatusShape | null): number {
   if (!status) return PACE_LIVE_MS;

@@ -48,9 +48,11 @@ export async function isTownTickAllowed(ctx: ActionCtxLike): Promise<boolean> {
 // runStep iterations so off-hours ambient activity is cheap. The
 // instructor flips state via the existing freeze/resume buttons.
 const PACE_LIVE_MS = 2500;
-// Frozen pace: 120s felt too dead for casual visitors. 90s is the
-// compromise between cost and visible activity.
-const PACE_FROZEN_MS = 90_000;
+// Frozen pace: 30s. With dev's parallel instance stopped, the cost
+// audit (2026-05-23) put 30s at ~¥1/day — affordable enough that
+// "visible activity for casual drop-in viewers" wins over "cheapest
+// possible". Course-long projected spend ≈ ¥30-40.
+const PACE_FROZEN_MS = 30_000;
 
 export function stepDurationMsFor(status: WorldStatusShape | null): number {
   if (!status) return PACE_LIVE_MS;
