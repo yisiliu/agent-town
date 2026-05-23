@@ -13,6 +13,7 @@ const townEventRef = 'ours/queries/getTownEvent:default' as any;
 const townAgentsRef = 'ours/queries/instructorTownAgents:default' as any;
 
 const promoteRef = 'ours/mutations/promoteTwinToAgent:default' as any;
+const leaveTwinsRef = 'ours/mutations/leaveTwinsFromTown:default' as any;
 const startDungeonRef = 'ours/mutations/startDungeonGame:default' as any;
 const setEventRef = 'ours/mutations/setTownEvent:default' as any;
 const clearEventRef = 'ours/mutations/clearTownEvent:default' as any;
@@ -281,9 +282,13 @@ function TownEventSection() {
 function TwinsSection() {
   const twins = useQuery(twinListRef, { limit: 50 }) as Twin[] | undefined;
   const promote = useMutation(promoteRef);
+  const leaveTwins = useMutation(leaveTwinsRef);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'student' | 'synthetic'>('all');
+  const [hideSuspended, setHideSuspended] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPending, setBulkPending] = useState(false);
 
   const onPromote = async (twinId: string) => {
     setPendingId(twinId); setError(null);
@@ -294,10 +299,35 @@ function TwinsSection() {
   };
 
   const filtered = (twins ?? []).filter((t) => {
+    if (hideSuspended && t.state === 'suspended') return false;
     if (filter === 'student') return !t.isSynthetic && t.state === 'active';
     if (filter === 'synthetic') return t.isSynthetic;
     return true;
   });
+
+  const toggle = (twinId: string) => {
+    const next = new Set(selected);
+    if (next.has(twinId)) next.delete(twinId); else next.add(twinId);
+    setSelected(next);
+  };
+  const toggleAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((t) => t._id)));
+    }
+  };
+  const onBulkLeave = async () => {
+    if (selected.size === 0) return;
+    setBulkPending(true); setError(null);
+    try {
+      const res = await leaveTwins({ twinIds: Array.from(selected) as any });
+      setSelected(new Set());
+      const n = (res as { leavesIssued?: number })?.leavesIssued ?? 0;
+      setError(n > 0 ? null : '没有匹配的活跃 player；可能已经不在小镇里了');
+    } catch (e) { setError((e as Error).message); }
+    finally { setBulkPending(false); }
+  };
 
   const FILTER_LABEL: Record<typeof filter, string> = {
     all: '全部',
@@ -305,13 +335,15 @@ function TwinsSection() {
     synthetic: 'AI 合成',
   };
 
+  const allSelected = filtered.length > 0 && selected.size === filtered.length;
+
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">
           数字分身（{filtered.length}{twins ? ` / 共 ${twins.length}` : ''}）
         </h2>
-        <div className="flex gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           {(['all', 'student', 'synthetic'] as const).map((f) => (
             <button
               key={f}
@@ -321,14 +353,48 @@ function TwinsSection() {
               {FILTER_LABEL[f]}
             </button>
           ))}
+          <label className="flex items-center gap-1 ml-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideSuspended}
+              onChange={(e) => setHideSuspended(e.target.checked)}
+            />
+            隐藏 suspended
+          </label>
         </div>
       </div>
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded bg-amber-50 dark:bg-amber-950/40 p-2 text-sm">
+          <span>已选 {selected.size} 个</span>
+          <button
+            onClick={onBulkLeave}
+            disabled={bulkPending}
+            className="rounded bg-red-600 px-3 py-1 text-white text-xs disabled:opacity-50"
+          >
+            {bulkPending ? '处理中…' : '退出小镇'}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="rounded border px-3 py-1 text-xs"
+          >
+            清空选择
+          </button>
+        </div>
+      )}
       {twins === undefined && <p>加载中…</p>}
       {twins && twins.length === 0 && <p className="text-neutral-500">还没有数字分身。</p>}
       {filtered.length > 0 && (
         <table className="w-full text-sm">
           <thead className="text-left text-neutral-500">
             <tr>
+              <th className="py-1 w-8">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  title="全选 / 取消全选"
+                />
+              </th>
               <th className="py-1">化名</th>
               <th className="py-1">状态</th>
               <th className="py-1">来源</th>
@@ -339,6 +405,13 @@ function TwinsSection() {
           <tbody>
             {filtered.map((t) => (
               <tr key={t._id} className="border-t dark:border-neutral-800">
+                <td className="py-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(t._id)}
+                    onChange={() => toggle(t._id)}
+                  />
+                </td>
                 <td className="py-2">{t.pseudonym}</td>
                 <td className="py-2">
                   <span className={
