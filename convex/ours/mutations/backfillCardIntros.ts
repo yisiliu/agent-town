@@ -3,10 +3,12 @@ import { action, internalMutation } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { parseIntro } from '../lib/parseCard';
 
-// Backfill the `intro` field on every `cards` row that doesn't have one yet.
-// Safe to re-run — only touches rows missing intro. Also (optionally)
-// rewrites the `playerDescriptions.description` for any twin that's
-// already a live agent so the UI sidebar stops showing the full card dump.
+// Re-parse and overwrite the `intro` field on every `cards` row. Originally
+// this only touched rows missing intro, but the previous `parseIntro`
+// implementation grabbed YAML frontmatter lines (e.g. `family: celebrity`,
+// `pseudonym: 阿朕`) as the intro, so re-runs need to overwrite those bad
+// values, not skip them. Also rewrites the `playerDescriptions.description`
+// for any already-promoted twin so the UI updates without a re-promote.
 //
 // Paginated for the same reason as wipeEmbeddings: cards' markdown can be
 // big, so a single-mutation read of the whole table risks 16MB limits.
@@ -22,8 +24,11 @@ export const backfillCardsChunk = internalMutation({
     let updated = 0;
     let cursor: number | null = null;
     for (const row of rows) {
-      if (row.intro !== undefined && row.intro !== '') continue;
       const intro = parseIntro(row.markdown);
+      // Force-overwrite: previous backfills set buggy intros that we
+      // can't dedup against (the buggy logic was deterministic, so
+      // skipping equal values means stale data sticks). Better to
+      // unconditionally write and accept the redundant patches.
       await ctx.db.patch(row._id, { intro });
       updated++;
       if (updated >= CHUNK) {
