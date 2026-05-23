@@ -41,23 +41,19 @@ export default function Game() {
   // camera by calling viewportRef.current.animate(...).
   const viewportRef = useRef<Viewport | undefined>(undefined);
 
-  // Browser fullscreen toggle. Targets documentElement so the whole
-  // page (including resident list + PlayerDetails) goes immersive;
-  // browser chrome hides. Listen to fullscreenchange so the button
-  // label flips when the user exits via Esc.
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Map-fullscreen toggle. CSS-only: when on, the game area covers the
+  // whole viewport (fixed inset-0 z-50) and the sidebars hide. Page
+  // layout stays intact behind, so exiting just flips the state back.
+  // Esc exits.
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
-  }, []);
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
-  };
+    if (!isMapFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMapFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMapFullscreen]);
 
   if (!worldId || !engineId || !game) {
     return null;
@@ -65,13 +61,19 @@ export default function Game() {
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
-      <div className="mx-auto w-full max-w grid grid-rows-[200px_240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[180px_1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
-        {/* Resident list */}
-        <ResidentList
-          game={game}
-          viewportRef={viewportRef}
-          setSelectedElement={setSelectedElement}
-        />
+      <div className={
+        isMapFullscreen
+          ? 'fixed inset-0 z-50 bg-brown-900'
+          : 'mx-auto w-full max-w grid grid-rows-[200px_240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[180px_1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame'
+      }>
+        {/* Resident list — hidden in map-fullscreen */}
+        {!isMapFullscreen && (
+          <ResidentList
+            game={game}
+            viewportRef={viewportRef}
+            setSelectedElement={setSelectedElement}
+          />
+        )}
         {/* Game area */}
         <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
           <div className="absolute inset-0">
@@ -94,31 +96,31 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
               </Stage>
             </div>
           </div>
-          {/* Fullscreen toggle. Absolute-positioned over the game so it
-              doesn't reflow the grid; pointer-events lets PixiJS still
-              receive clicks where the button isn't. */}
+          {/* Map-fullscreen toggle. Absolute-positioned over the game. */}
           <button
-            onClick={toggleFullscreen}
+            onClick={() => setIsMapFullscreen(!isMapFullscreen)}
             className="absolute top-2 right-2 z-10 rounded bg-brown-800/80 px-2 py-1 text-xs text-brown-100 hover:bg-brown-700 pointer-events-auto"
-            title={isFullscreen ? '退出全屏 (Esc)' : '全屏'}
+            title={isMapFullscreen ? '退出地图全屏 (Esc)' : '地图全屏'}
           >
-            {isFullscreen ? '⛶ 退出' : '⛶ 全屏'}
+            {isMapFullscreen ? '⛶ 退出' : '⛶ 全屏'}
           </button>
         </div>
-        {/* Right column area */}
-        <div
-          className="flex flex-col overflow-y-auto shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900  bg-brown-800 text-brown-100"
-          ref={scrollViewRef}
-        >
-          <PlayerDetails
-            worldId={worldId}
-            engineId={engineId}
-            game={game}
-            playerId={selectedElement?.id}
-            setSelectedElement={setSelectedElement}
-            scrollViewRef={scrollViewRef}
-          />
-        </div>
+        {/* Right column — hidden in map-fullscreen */}
+        {!isMapFullscreen && (
+          <div
+            className="flex flex-col overflow-y-auto shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900  bg-brown-800 text-brown-100"
+            ref={scrollViewRef}
+          >
+            <PlayerDetails
+              worldId={worldId}
+              engineId={engineId}
+              game={game}
+              playerId={selectedElement?.id}
+              setSelectedElement={setSelectedElement}
+              scrollViewRef={scrollViewRef}
+            />
+          </div>
+        )}
       </div>
     </>
   );
