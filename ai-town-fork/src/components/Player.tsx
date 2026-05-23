@@ -10,6 +10,27 @@ import { useHistoricalValue } from '../hooks/useHistoricalValue.ts';
 import { PlayerDescription } from '../../convex/aiTown/playerDescription.ts';
 import { WorldMap } from '../../convex/aiTown/worldMap.ts';
 import { ServerGame } from '../hooks/serverGame.ts';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api.js';
+
+const MOOD_EMOJI: Record<string, string> = {
+  happy: '😊',
+  neutral: '😐',
+  sad: '😢',
+  angry: '😡',
+  excited: '🤩',
+  anxious: '😰',
+  bored: '😴',
+  confused: '😵',
+  flirty: '😘',
+  mischievous: '😈',
+  jealous: '😒',
+  proud: '😤',
+  hopeful: '🌟',
+  lonely: '🥺',
+  surprised: '😲',
+  grateful: '🙏',
+};
 
 export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }) => void;
 
@@ -29,6 +50,13 @@ export const Player = ({
   onClick: SelectElement;
   historicalTime?: number;
 }) => {
+  const moods = useQuery(api.ours.queries.listAgentMoods.default, {
+    worldId: game.worldId,
+  });
+  const agentId = [...game.world.agents.values()].find((a) => a.playerId === player.id)?.id;
+  const mood = agentId ? moods?.[agentId] : null;
+  const moodEmoji = mood ? (MOOD_EMOJI[mood.mood] ?? '') : '';
+
   const playerCharacter = game.playerDescriptions.get(player.id)?.character;
   if (!playerCharacter) {
     throw new Error(`Player ${player.id} has no character`);
@@ -73,6 +101,7 @@ export const Player = ({
         isMoving={historicalLocation.speed > 0}
         isThinking={isThinking}
         isSpeaking={isSpeaking}
+        moodEmoji={moodEmoji}
         emoji={
           player.activity && player.activity.until > (historicalTime ?? Date.now())
             ? player.activity?.emoji
