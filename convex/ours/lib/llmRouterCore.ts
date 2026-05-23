@@ -22,12 +22,18 @@ export type CallType =
   | 'idle_thought'
   | 'move_decision';
 
-// Spec §5.1 tier table. `idle_thought` + `move_decision` are mechanical
-// ambient calls — V4 Flash is plenty and the per-call cost (~$0.000025
-// at the token cap) absorbs the high tick cadence cheaply.
+// `idle_thought` + `move_decision` are mechanical ambient calls — V4
+// Flash is plenty. `private_chat` + `interaction_turn` were originally
+// on frontier per spec §5.1, but the 2026-05 audit showed they accounted
+// for ~79% of pro spend with no perceptible quality drop on flash; moved
+// to local to cut ~48% of daily LLM cost. `pii_scan` + `injection_scan`
+// stay on frontier — they're the upload gate, run once per twin, and
+// false-negatives matter more than the marginal cost.
 const LOCAL_CALLTYPES: ReadonlySet<CallType> = new Set([
   'idle_thought',
   'move_decision',
+  'private_chat',
+  'interaction_turn',
 ]);
 
 export type Tier = 'frontier' | 'local';
