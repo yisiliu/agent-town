@@ -65,28 +65,37 @@ export async function startConversationMessage(
   const memoryWithOtherPlayer = memories.find(
     (m) => m.data.type === 'conversation' && m.data.playerIds.includes(otherPlayerId),
   );
-  const prompt = [
+  // CACHE-FRIENDLY LAYOUT: system prompt contains only stable content
+  // (greeting, language directive, identities); variable content
+  // (memories, prior-convo summary, per-call hint) goes into a separate
+  // user message right before the final cue. DeepSeek auto-caches
+  // identical prompt prefixes, so this lets the entire system block
+  // hit cache across calls between the same pair.
+  const systemLines = [
     `You are ${player.name}, and you just started a conversation with ${otherPlayer.name}.`,
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
+    ...agentPrompts(otherPlayer, agent, otherAgent ?? null),
   ];
-  prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
-  prompt.push(...previousConversationPrompt(otherPlayer, lastConversation));
-  prompt.push(...relatedMemoriesPrompt(memories));
+
+  const variableLines: string[] = [
+    ...previousConversationPrompt(otherPlayer, lastConversation),
+    ...relatedMemoriesPrompt(memories),
+  ];
   if (memoryWithOtherPlayer) {
-    prompt.push(
+    variableLines.push(
       `Be sure to include some detail or question about a previous conversation in your greeting.`,
     );
   }
+
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
-  prompt.push(lastPrompt);
+  const messages: LLMMessage[] = [{ role: 'system', content: systemLines.join('\n') }];
+  if (variableLines.length > 0) {
+    messages.push({ role: 'user', content: variableLines.join('\n') });
+  }
+  messages.push({ role: 'user', content: lastPrompt });
 
   const { content } = await townChat({
-    messages: [
-      {
-        role: 'system',
-        content: prompt.join('\n'),
-      },
-    ],
+    messages,
     max_tokens: 300,
   });
   return trimContentPrefx(content, lastPrompt);
@@ -115,30 +124,29 @@ export async function continueConversationMessage(
       conversationId,
     },
   );
-  const now = Date.now();
-  const started = new Date(conversation.created);
   const embedding = await embeddingsCache.fetch(
     ctx,
     `What do you think about ${otherPlayer.name}?`,
   );
   const memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
-  const prompt = [
+
+  // CACHE-FRIENDLY LAYOUT (changed 2026-05-23 to lift flash cache-hit
+  // rate from ~80% to ~95%): system prompt is stable per (A, B,
+  // A.identity, B.identity); call-specific data (memories, the
+  // "don't repeat greeting" hint) goes into a separate user message
+  // appended AFTER prior history but before the final cue. Timestamps
+  // were removed from the system prompt — they were the single biggest
+  // cache-killer because `now.toLocaleString()` is unique per call.
+  const systemLines = [
     `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
-    `The conversation started at ${started.toLocaleString()}. It's now ${now.toLocaleString()}.`,
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
-  ];
-  prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
-  prompt.push(...relatedMemoriesPrompt(memories));
-  prompt.push(
+    ...agentPrompts(otherPlayer, agent, otherAgent ?? null),
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `DO NOT greet them again. Do NOT use the word "Hey" too often. Your response should be brief and within 200 characters.`,
-  );
+  ];
 
   const llmMessages: LLMMessage[] = [
-    {
-      role: 'system',
-      content: prompt.join('\n'),
-    },
+    { role: 'system', content: systemLines.join('\n') },
     ...(await previousMessages(
       ctx,
       worldId,
@@ -147,6 +155,12 @@ export async function continueConversationMessage(
       conversation.id as GameId<'conversations'>,
     )),
   ];
+  // Memories vary per call; place them after history so cache-prefix
+  // covers `system + history` across calls within the same conversation.
+  const memoryLines = relatedMemoriesPrompt(memories);
+  if (memoryLines.length > 0) {
+    llmMessages.push({ role: 'user', content: memoryLines.join('\n') });
+  }
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
