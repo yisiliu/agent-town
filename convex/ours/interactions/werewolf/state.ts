@@ -105,6 +105,9 @@ export interface WerewolfState {
   // ---- last-words / hunter-shoot queue ----
   // Players queued for last-words. The phase pops one each turn.
   lastWordsQueue: Id<'twins'>[];
+  // Set to true when last-words were triggered from night-resolve (first-night
+  // deaths). Controls where transitionAfterResolve goes after the queue drains.
+  lastWordsFromNightResolve?: boolean;
   // Hunter who must shoot (set when a hunter dies non-poisoned).
   pendingHunterShot?: Id<'twins'>;
   // What phase to return to after the hunter shoots. Tracks where the

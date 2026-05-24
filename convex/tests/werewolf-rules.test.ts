@@ -26,11 +26,20 @@ function byRole(s: WerewolfState, role: string): Id<'twins'>[] {
     .map(([id]) => id as unknown as Id<'twins'>);
 }
 
-// Helper: drive the sheriff-claim phase with every alive player declining
-// to run. Result: no sheriff this game, immediate transition to day-speak.
-// Used by tests that exercise non-sheriff mechanics on Day 1.
+// Helper: drive through any first-night last-words, then the sheriff-claim
+// phase (every player declines). Result: no sheriff, immediate transition to
+// day-speak. Used by tests that exercise non-sheriff mechanics on Day 1.
 function skipSheriffElection(s: WerewolfState): WerewolfState {
   let cur = s;
+  // First-night deaths now enter last-words before sheriff-claim.
+  while (cur.phase === 'last-words') {
+    cur = applyTurn(cur, {
+      phase: 'last-words',
+      kind: 'last-words',
+      actorTwinId: cur.lastWordsQueue[0],
+      text: 'bye',
+    });
+  }
   while (cur.phase === 'sheriff-claim') {
     const actor = cur.alive[cur.sheriffClaimCursor]!;
     cur = applyTurn(cur, {
@@ -340,8 +349,7 @@ describe('werewolf rules — hunter', () => {
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.alive).not.toContain(hunter); // poisoned dead
     expect(s.pendingHunterShot).toBeUndefined(); // blocked!
-    // Day-1 morning sheriff election runs first, then day-speak.
-    expect(s.phase).toBe('sheriff-claim');
+    // Both night deaths get last-words (day===0), then sheriff election.
     s = skipSheriffElection(s);
     expect(s.phase).toBe('day-speak');
   });
@@ -437,7 +445,8 @@ describe('werewolf rules — Task 1.5: night order guard→wolf→witch→seer�
 });
 
 describe('werewolf rules — sheriff election', () => {
-  // Helper: run a 9p night through, return state at the start of sheriff-claim.
+  // Helper: run a 9p night through, consume first-night last-words, return
+  // state at the start of sheriff-claim.
   function nightOneToSheriffClaim(): WerewolfState {
     let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
@@ -450,6 +459,10 @@ describe('werewolf rules — sheriff election', () => {
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    // Consume first-night last-words before sheriff-claim.
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
     expect(s.phase).toBe('sheriff-claim');
     return s;
   }
@@ -624,6 +637,10 @@ describe('werewolf rules — sheriff PK round', () => {
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    // Consume first-night last-words before sheriff-claim.
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
     return s;
   }
 
@@ -739,6 +756,10 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    // First-night death gets last-words; consume them before sheriff-claim.
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
     expect(s.phase).toBe('sheriff-claim');
 
     // One wolf self-explodes immediately.
@@ -1327,5 +1348,53 @@ describe('plugin registry', () => {
 
   it('unknown plugin lookups return undefined', () => {
     expect(getPlugin('does-not-exist')).toBeUndefined();
+  });
+});
+
+describe('werewolf rules — 遗言不对称 (first-night only)', () => {
+  it('first-night (day===0) night-death gets last-words', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.lastWordsQueue).toContain(villager);
+    expect(s.phase).toBe('last-words');
+  });
+
+  it('night-2 (day===1) night-death gets NO last-words (off-by-one nailed)', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const vA = byRole(s, 'villager')[0]!;
+    const vB = byRole(s, 'villager')[1]!;
+    // N1: kill vA
+    for (const w of wolves) s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: vA } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    // consume N1 last-words for vA
+    if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    s = skipSheriffElection(s);
+    // day-1: skip speak, vote out wolves[0]
+    while (s.phase === 'day-speak') s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+    while (s.phase === 'day-vote') s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[0] } });
+    if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    expect(s.day).toBe(1);
+    expect(s.phase).toBe('night-guard');
+    // N2: kill vB
+    s = advanceToWerewolf(s);
+    const aliveWolves = byRole(s, 'werewolf').filter((w) => s.alive.includes(w));
+    for (const w of aliveWolves) s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: vB } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: aliveWolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).not.toContain(vB);
+    expect(s.lastWordsQueue).toEqual([]); // NO last-words on night 2
   });
 });

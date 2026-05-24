@@ -49,6 +49,7 @@ function clone(s: WerewolfState): WerewolfState {
     nightDeaths: s.nightDeaths.slice(),
     poisonedThisNight: s.poisonedThisNight.slice(),
     lastWordsQueue: s.lastWordsQueue.slice(),
+    lastWordsFromNightResolve: s.lastWordsFromNightResolve,
     pendingHunterShot: s.pendingHunterShot,
     phaseAfterHunterShot: s.phaseAfterHunterShot,
     sheriff: s.sheriff,
@@ -507,6 +508,12 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
         next.phaseAfterHunterShot = 'day-speak';
       }
     }
+    // First-night-only last-words (spec §5). `day` is still 0 here because it
+    // only increments on the day→night transition — verified no off-by-one.
+    if (next.day === 0) {
+      next.lastWordsQueue.push(d);
+      next.lastWordsFromNightResolve = true;
+    }
   }
 
   if (uniqDeaths.length === 0) {
@@ -795,7 +802,11 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
       }
     }
     next.lastWordsQueue = next.lastWordsQueue.slice(1);
-    return transitionAfterResolve(next, false);
+    const fromNight = !!next.lastWordsFromNightResolve;
+    if (next.lastWordsQueue.length === 0) {
+      next.lastWordsFromNightResolve = undefined;
+    }
+    return transitionAfterResolve(next, fromNight);
   }
 
   // ---- sheriff-claim ----
