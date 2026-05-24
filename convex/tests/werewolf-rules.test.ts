@@ -1072,6 +1072,26 @@ describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
     expect(p).toContain('解药【已用过】');
     expect(p).toContain('毒药【未使用】');
   });
+
+  it('guard (night-guard) gets a real prompt with candidate ids + format (regression: missing buildUserPrompt branch)', () => {
+    const s = initialState(twelve, 7);
+    const guard = byRole(s, 'guard')[0]!;
+    expect(guard).toBeDefined();
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: guard,
+      phase: 'night-guard',
+      kind: 'guard-protect',
+      visibleTurns: [],
+      aliveNames: {},
+    });
+    // Without this branch the guard had no format guidance and emitted a NAME
+    // instead of a twin id → parseTurnText rejected it ("target not in alive set").
+    expect(p).toContain('one of the candidate ids'); // exact-id format instruction
+    expect(p).toMatch(/twin_\d/); // candidate list renders real twin ids
+    expect(p).toContain('守卫'); // guard role context
+    expect(p).toContain('空守'); // empty-guard option offered
+  });
 });
 
 describe('werewolf prompts — sheriff vote sees candidate speeches', () => {

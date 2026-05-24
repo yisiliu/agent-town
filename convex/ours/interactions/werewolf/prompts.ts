@@ -597,6 +597,30 @@ ${listCandidates(candidates, nameMap)}
 Respond JSON: {"thinking":"...","say":"<your 1-3 sentence summary + recommendation>","action":{"target":"<recommended lynch target id>"}}`;
   }
 
+  if (phase === 'night-guard' && kind === 'guard-protect') {
+    // 可自守 → include self; 可空守 → target is optional.
+    const candidates = state.alive;
+    const lastGuarded =
+      state.lastGuardTarget != null
+        ? nameMap[state.lastGuardTarget as unknown as string] ?? state.lastGuardTarget
+        : null;
+    const repeatRule = lastGuarded
+      ? `你昨晚守护了 ${lastGuarded}，**不能连续两晚守护同一人**——今晚请换一个目标（或空守）。`
+      : `今晚你尚未守护过任何人。`;
+    return `It is night ${state.day + 1}. You are the GUARD (守卫). 你可以守护一名存活玩家（含你自己）以挡下今晚的狼刀，也可以空守（不守任何人）。${repeatRule}
+
+PUBLIC LOG:
+${log}
+
+注意「同守同救」：若你守护的人同晚又被女巫用解药救，该玩家反而会死（奶穿）。
+
+CANDIDATES (alive players, including yourself):
+${listCandidates(candidates, nameMap)}${hints}
+
+Respond JSON to protect: {"thinking":"...","action":{"target":"<one of the candidate ids>"}}
+Or to 空守 (protect nobody): {"thinking":"...","action":{}}`;
+  }
+
   if (phase === 'night-werewolf' && kind === 'wolf-kill-bid') {
     const candidates = state.alive.filter(
       (id) => state.roles[id as unknown as string] !== 'werewolf',
