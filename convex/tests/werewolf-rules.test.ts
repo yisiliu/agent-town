@@ -314,8 +314,9 @@ describe('werewolf rules — hunter', () => {
     expect(s.phase).toBe('day-speak');
 
     // Skip day-speak (8 alive after seer killed)
-    for (let i = 0; i < s.alive.length; i++) {
-      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'meh' });
+    while (s.phase === 'day-speak') {
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     expect(s.phase).toBe('day-vote');
 
@@ -378,8 +379,9 @@ describe('werewolf rules — last-words', () => {
     s = skipSheriffElection(s);
 
     // Day-speak
-    for (let i = 0; i < s.alive.length; i++) {
-      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'meh' });
+    while (s.phase === 'day-speak') {
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     // Vote a non-hunter (vote wolf[1] to keep it simple)
     const target = wolves[1]!;
@@ -556,7 +558,7 @@ describe('werewolf rules — sheriff election', () => {
 
     // Drive day-speak (8 alive after night-1 kill).
     while (s.phase === 'day-speak') {
-      const actor = s.alive[s.cursor]!;
+      const actor = planNextTurn(s)!.actorTwinId!;
       s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     // After all spoke, sheriff-pull-vote triggers (sheriff alive).
@@ -599,7 +601,7 @@ describe('werewolf rules — sheriff election', () => {
     }
     // Drive day-speak
     while (s.phase === 'day-speak') {
-      const actor = s.alive[s.cursor]!;
+      const actor = planNextTurn(s)!.actorTwinId!;
       s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     // sheriff-pull-vote then day-vote
@@ -628,7 +630,7 @@ describe('werewolf rules — sheriff election', () => {
       s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: sheriffCand, data: { direction: 'right' } });
     }
     while (s.phase === 'day-speak') {
-      const actor = s.alive[s.cursor]!;
+      const actor = planNextTurn(s)!.actorTwinId!;
       s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     s = applyTurn(s, { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: sheriffCand });
@@ -818,7 +820,8 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     s = skipSheriffElection(s);
     // Drive day-speak
     while (s.phase === 'day-speak') {
-      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'meh' });
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
     }
     expect(s.phase).toBe('day-vote');
     // Self-explode mid-vote
@@ -862,7 +865,8 @@ describe('werewolf rules — witch self-save N1 only', () => {
     s = skipSheriffElection(s);
     // Day-1 speak + vote (everyone votes wolf0 to keep night-2 alive simple)
     while (s.phase === 'day-speak') {
-      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'x' });
     }
     while (s.phase === 'day-vote') {
       s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[1]! } });
@@ -1350,10 +1354,10 @@ describe('werewolf rules — night resolve 3-input gate (守×救×毒)', () => 
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.lastGuardTarget).toBe(villager);
     // Fast-forward through Day 1: sheriff election, speak, vote (eliminate wolves[0] to keep it alive for N2).
-    // NOTE: day-direction phase added in Unit 2; skip it here, re-add after Unit 2 lands.
     s = skipSheriffElection(s);
     while (s.phase === 'day-speak') {
-      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'x' });
     }
     while (s.phase === 'day-vote') {
       s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[0] } });
@@ -1413,7 +1417,7 @@ describe('werewolf rules — 遗言不对称 (first-night only)', () => {
     if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
     s = skipSheriffElection(s);
     // day-1: skip speak, vote out wolves[0]
-    while (s.phase === 'day-speak') s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+    while (s.phase === 'day-speak') s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: planNextTurn(s)!.actorTwinId!, text: 'x' });
     while (s.phase === 'day-vote') s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[0] } });
     if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
     expect(s.day).toBe(1);
@@ -1601,5 +1605,68 @@ describe('werewolf rules — day-direction (发言顺序)', () => {
     const after = applyTurn(fakeState, { phase: 'day-direction', kind: 'system', actorTwinId: null });
     expect(after.speechOrder).not.toContain(villager);
     expect(after.speechOrder!.length).toBe(after.alive.length);
+  });
+
+  it('day-speak advances by speechOrder via speechCursor, skipping dead', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    s = skipSheriffElection(s); // drives through sheriff-claim + day-direction → lands on day-speak
+    expect(s.phase).toBe('day-speak');
+    const order = s.speechOrder!.slice();
+    // First planned speaker == speechOrder[0].
+    expect(planNextTurn(s)!.actorTwinId).toBe(order[0]);
+    let i = 0;
+    while (s.phase === 'day-speak') {
+      const expected = order[s.speechCursor!]!;
+      expect(planNextTurn(s)!.actorTwinId).toBe(expected);
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: expected, text: 'x' });
+      i++;
+    }
+    expect(i).toBe(order.length); // every alive player spoke exactly once
+    // No sheriff → straight to day-vote.
+    expect(s.phase).toBe('day-vote');
+  });
+
+  it('skip-dead: planNextTurn and applyTurn skip a speechOrder entry whose player died after the snapshot', () => {
+    // Construct a day-speak state where speechOrder = [P(0), P(1), P(2)] but
+    // P(1) is NOT in alive — simulating a player who died after the order was
+    // snapshotted (e.g. hunter shot mid-day). This directly exercises the
+    // skip-dead while-loop in both planNextTurn and applyTurn.
+    const s0 = initialState(five, 42);
+    const [a, b, c] = [P(0), P(1), P(2)];
+    const staleOrder = [a!, b!, c!];
+    const base: WerewolfState = {
+      ...s0,
+      phase: 'day-speak',
+      alive: [a!, c!],       // P(1) died after speechOrder was snapshotted
+      speechOrder: staleOrder,
+      speechCursor: 0,
+      sheriff: undefined,
+      sheriffElectionDone: true,
+    };
+
+    // planNextTurn must skip P(1) and return P(0) (index 0 is alive)
+    const plan0 = planNextTurn(base)!;
+    expect(plan0.actorTwinId).toBe(a);
+
+    // P(0) speaks → applyTurn advances cursor past P(1) straight to P(2)
+    const afterA = applyTurn(base, { phase: 'day-speak', kind: 'speak', actorTwinId: a!, text: 'hello' });
+    expect(afterA.phase).toBe('day-speak');
+    const plan1 = planNextTurn(afterA)!;
+    // Must be P(2), NOT P(1)
+    expect(plan1.actorTwinId).toBe(c);
+    expect(plan1.actorTwinId).not.toBe(b);
+
+    // P(2) speaks → all alive players have spoken, transitions out of day-speak
+    const afterC = applyTurn(afterA, { phase: 'day-speak', kind: 'speak', actorTwinId: c!, text: 'hello' });
+    expect(afterC.phase).not.toBe('day-speak');
   });
 });

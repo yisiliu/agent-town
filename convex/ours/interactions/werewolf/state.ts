@@ -116,7 +116,7 @@ export interface WerewolfState {
   // What phase to return to after the hunter shoots. Tracks where the
   // hunter's death originated so we don't accidentally skip a full
   // day-cycle when the hunter dies at night.
-  phaseAfterHunterShot?: 'day-speak' | 'night-werewolf';
+  phaseAfterHunterShot?: 'day-speak' | 'day-direction' | 'night-werewolf' | 'night-guard';
 
   // ---- sheriff state ----
   // Set once on Day 1 after sheriff-vote resolves. Stays set until sheriff

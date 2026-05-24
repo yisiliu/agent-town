@@ -442,7 +442,12 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
   }
 
   if (s.phase === 'day-speak') {
-    const actor = s.alive[s.cursor];
+    const order = s.speechOrder ?? s.alive;
+    const cursor = s.speechCursor ?? 0;
+    // Skip anyone in the order who is no longer alive (died mid-day via hunter).
+    let i = cursor;
+    while (i < order.length && !s.alive.includes(order[i]!)) i++;
+    const actor = order[i];
     if (!actor) return null;
     return { phase: 'day-speak', kind: 'speak', actorTwinId: actor, visibility: 'public' };
   }
@@ -539,9 +544,9 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
       const poisoned = next.poisonedThisNight.includes(d);
       if (!poisoned && !next.pendingHunterShot) {
         next.pendingHunterShot = d;
-        // Night death → after the shot, return to day-speak (the village
-        // still needs to discuss and lynch).
-        next.phaseAfterHunterShot = 'day-speak';
+        // Night death → after the shot, route through day-direction so
+        // speechOrder is computed before day-speak begins.
+        next.phaseAfterHunterShot = 'day-direction';
       }
     }
     // First-night-only last-words (spec §5). `day` is still 0 here because it
@@ -791,13 +796,26 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         );
       }
     }
-    // Honor where the hunter shot was triggered from — night death returns
-    // to day-speak; day lynch advances to next night. Without this, a night
-    // hunter death would skip the entire day cycle.
-    const returnTo = next.phaseAfterHunterShot ?? 'day-speak';
+    // Honor where the hunter shot was triggered from.
+    // day-lynch path → phaseAfterHunterShot = 'night-werewolf' → advance to next night.
+    // night-death path → phaseAfterHunterShot = 'day-direction' → compute speech order then day-speak.
+    const returnTo = next.phaseAfterHunterShot ?? 'day-direction';
     next.pendingHunterShot = undefined;
     next.phaseAfterHunterShot = undefined;
-    return transitionAfterResolve(next, returnTo === 'day-speak');
+    if (returnTo === 'night-werewolf' || returnTo === 'night-guard') {
+      // Day-lynch hunter death → advance to next night.
+      return transitionAfterResolve(next, false);
+    }
+    // Night-death hunter → go compute speech order for the day, then speak.
+    // Guard: if sheriff election hasn't run yet (Day 1), route there first.
+    if (!next.sheriffElectionDone) {
+      next.phase = 'sheriff-claim';
+      next.sheriffClaimCursor = 0;
+      next.cursor = 0;
+      return next;
+    }
+    next.phase = 'day-direction';
+    return next;
   }
 
   // ---- last-words ----
@@ -1074,8 +1092,12 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
   // ---- day-speak ----
   if (s.phase === 'day-speak' && (t.kind === 'speak' || t.kind === 'abstain')) {
     const next = clone(s);
-    next.cursor += 1;
-    if (next.cursor >= next.alive.length) {
+    const order = next.speechOrder ?? next.alive;
+    let cursor = (next.speechCursor ?? 0) + 1;
+    // Skip anyone who died mid-day (e.g. hunter shot during day).
+    while (cursor < order.length && !next.alive.includes(order[cursor]!)) cursor++;
+    next.speechCursor = cursor;
+    if (cursor >= order.length) {
       // After all alive players spoke, if there's a sheriff alive, they
       // get the final pull-vote turn before voting begins.
       if (next.sheriff && next.alive.includes(next.sheriff)) {

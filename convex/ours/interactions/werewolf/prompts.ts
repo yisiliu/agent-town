@@ -300,7 +300,7 @@ function focusHints(
   const actorName = nameMap[actorKey] ?? actorKey;
 
   // (1) First speaker today?
-  if (state.phase === 'day-speak' && state.cursor === 0 && visibleTurns.filter((t) => t.phase === 'day-speak').length === 0) {
+  if (state.phase === 'day-speak' && (state.speechCursor ?? 0) === 0 && visibleTurns.filter((t) => t.phase === 'day-speak').length === 0) {
     hints.push(
       '你是今天第一个发言的人。没有人可以参考，可以先抛出一个起手判断或一个观察角度，定下基调。',
     );
