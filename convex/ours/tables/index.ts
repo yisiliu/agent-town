@@ -25,6 +25,7 @@ import { agentDailySpend } from './agentDailySpend';
 import { worldState } from './worldState';
 import { uploadResults } from './uploadResults';
 import { engineWatchdog } from './engineWatchdog';
+import { agentMoods } from './agentMoods';
 import { llmCacheStats } from './llmCacheStats';
 
 export const ourTables = {
@@ -55,5 +56,6 @@ export const ourTables = {
   worldState,
   uploadResults,
   engineWatchdog,
+  agentMoods,
   llmCacheStats,
 };

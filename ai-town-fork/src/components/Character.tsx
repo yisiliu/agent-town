@@ -12,6 +12,7 @@ export const Character = ({
   isMoving = false,
   isThinking = false,
   isSpeaking = false,
+  moodEmoji = '',
   emoji = '',
   isViewer = false,
   speed = 0.1,
@@ -30,6 +31,7 @@ export const Character = ({
   isThinking?: boolean;
   // Shows a speech bubble if true.
   isSpeaking?: boolean;
+  moodEmoji?: string;
   emoji?: string;
   // Highlights the player.
   isViewer?: boolean;
@@ -101,6 +103,9 @@ export const Character = ({
         animationSpeed={speed}
         anchor={{ x: 0.5, y: 0.5 }}
       />
+      {moodEmoji && (
+        <Text x={-12} y={-14} scale={0.7} text={moodEmoji} anchor={{ x: 0.5, y: 0.5 }} />
+      )}
       {emoji && (
         <Text x={0} y={-24} scale={{ x: -0.8, y: 0.8 }} text={emoji} anchor={{ x: 0.5, y: 0.5 }} />
       )}

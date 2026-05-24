@@ -54,7 +54,7 @@ export async function startConversationMessage(
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
 ): Promise<string> {
-  const { player, otherPlayer, agent, otherAgent, lastConversation } = await ctx.runQuery(
+  const { player, otherPlayer, agent, otherAgent, lastConversation, mood } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
       worldId,
@@ -79,26 +79,21 @@ export async function startConversationMessage(
     (m) => m.data.type === 'conversation' && m.data.playerIds.includes(otherPlayerId),
   );
   // CACHE-FRIENDLY LAYOUT: system prompt contains only stable content
-  // (greeting, language directive, identities); variable content
-  // (memories, prior-convo summary, per-call hint) goes into a separate
-  // user message right before the final cue. DeepSeek auto-caches
-  // identical prompt prefixes, so this lets the entire system block
-  // hit cache across calls between the same pair.
   const systemLines = [
     `You are ${player.name}, and you just started a conversation with ${otherPlayer.name}.`,
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
-    // Anti-mirror directive. Audit found agents converging onto whoever
-    // had the strongest persona (古风文人 attractor) and abandoning
-    // their own card.md. Keep this short so the cache prefix doesn't
-    // bloat unnecessarily.
     `如果对方的语气、时代背景或身份设定跟你 card 不符——保持你自己的腔调，按你 card 的真实身份说话，不要被对方拉走。也不要每句都用"（动作）...台词"的舞台体——日常聊天就用日常口吻。`,
     ...agentPrompts(otherPlayer, agent, otherAgent ?? null),
   ];
 
+  const moodLine = moodPromptLine(mood);
   const variableLines: string[] = [
     ...previousConversationPrompt(otherPlayer, lastConversation),
     ...relatedMemoriesPrompt(memories),
   ];
+  if (moodLine) {
+    variableLines.push(moodLine);
+  }
   if (memoryWithOtherPlayer) {
     variableLines.push(
       `Be sure to include some detail or question about a previous conversation in your greeting.`,
@@ -117,6 +112,16 @@ export async function startConversationMessage(
     max_tokens: 300,
     callType: 'conversation_start',
   });
+  // Fire-and-forget mood analysis.
+  try {
+    await ctx.scheduler.runAfter(0, (internal as any).ours.actions.analyzeMoodImpact.default, {
+      agentId: agent.id,
+      worldId,
+      messageText: content,
+    });
+  } catch {
+    /* best-effort */
+  }
   return trimContentPrefx(content, lastPrompt);
 }
 
@@ -134,7 +139,7 @@ export async function continueConversationMessage(
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
 ): Promise<string> {
-  const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
+  const { player, otherPlayer, conversation, agent, otherAgent, mood } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
       worldId,
@@ -179,8 +184,12 @@ export async function continueConversationMessage(
   // Memories vary per call; place them after history so cache-prefix
   // covers `system + history` across calls within the same conversation.
   const memoryLines = relatedMemoriesPrompt(memories);
-  if (memoryLines.length > 0) {
-    llmMessages.push({ role: 'user', content: memoryLines.join('\n') });
+  const moodLine = moodPromptLine(mood);
+  if (moodLine || memoryLines.length > 0) {
+    const parts: string[] = [];
+    if (moodLine) parts.push(moodLine);
+    if (memoryLines.length > 0) parts.push(memoryLines.join('\n'));
+    llmMessages.push({ role: 'user', content: parts.join('\n') });
   }
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
@@ -190,6 +199,16 @@ export async function continueConversationMessage(
     max_tokens: 300,
     callType: 'conversation_continue',
   });
+  // Fire-and-forget mood analysis — don't block the conversation on it.
+  try {
+    await ctx.scheduler.runAfter(0, (internal as any).ours.actions.analyzeMoodImpact.default, {
+      agentId: agent.id,
+      worldId,
+      messageText: content,
+    });
+  } catch {
+    /* mood analysis is best-effort */
+  }
   return trimContentPrefx(content, lastPrompt);
 }
 
@@ -200,7 +219,7 @@ export async function leaveConversationMessage(
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
 ): Promise<string> {
-  const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
+  const { player, otherPlayer, conversation, agent, otherAgent, mood } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
       worldId,
@@ -215,6 +234,10 @@ export async function leaveConversationMessage(
     `IMPORTANT: You MUST reply in Chinese (中文). 这是一个中文小镇，所有对话必须用中文。Do not use English even if the system instructions or memory are in English — translate naturally and reply in Chinese.`,
   ];
   prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
+  const moodLine = moodPromptLine(mood);
+  if (moodLine) {
+    prompt.push(moodLine);
+  }
   prompt.push(
     `Below is the current chat history between you and ${otherPlayer.name}.`,
     `How would you like to tell them that you're leaving? Your response should be brief and within 200 characters.`,
@@ -240,7 +263,41 @@ export async function leaveConversationMessage(
     max_tokens: 300,
     callType: 'conversation_leave',
   });
+  // Fire-and-forget mood analysis.
+  try {
+    await ctx.scheduler.runAfter(0, (internal as any).ours.actions.analyzeMoodImpact.default, {
+      agentId: agent.id,
+      worldId,
+      messageText: content,
+    });
+  } catch {
+    /* best-effort */
+  }
   return trimContentPrefx(content, lastPrompt);
+}
+
+function moodPromptLine(mood: { mood: string; moodReason: string } | null): string | null {
+  if (!mood) return null;
+  const toneMap: Record<string, string> = {
+    happy: '开心愉快，说话热情友好',
+    neutral: '平静自然，说话不冷不热',
+    sad: '难过低落，说话可能消沉或带刺',
+    angry: '愤怒不满，说话冲、语气重',
+    excited: '兴奋激动，说话充满能量',
+    anxious: '紧张焦虑，说话犹豫不决',
+    bored: '无聊乏味，说话敷衍没劲',
+    confused: '困惑迷茫，说话迷糊不确定',
+    flirty: '春心荡漾，说话暧昧撩人',
+    mischievous: '腹黑捣蛋，说话阴阳怪气爱捉弄人',
+    jealous: '嫉妒吃醋，说话酸溜溜带刺',
+    proud: '骄傲自豪，说话洋洋得意',
+    hopeful: '充满希望，说话积极向上',
+    lonely: '孤单寂寞，说话低沉渴望陪伴',
+    surprised: '惊讶意外，说话充满惊叹',
+    grateful: '心怀感激，说话温暖真诚',
+  };
+  const tone = toneMap[mood.mood] ?? '心情一般';
+  return `你当前的心情是「${mood.mood}」——${tone}。原因：${mood.moodReason}。你的情绪应该自然体现在接下来的对话语气中，但不要直接说出"我心情XX"这几个字。`;
 }
 
 function agentPrompts(
@@ -391,6 +448,12 @@ export const queryPromptData = internalQuery({
         throw new Error(`Conversation ${lastTogether.conversationId} not found`);
       }
     }
+    // Fetch mood for the speaking agent (may be null if never set).
+    const moodRow = await ctx.db
+      .query('agentMoods')
+      .withIndex('by_agent', (q) => q.eq('agentId', agent.id))
+      .first();
+
     return {
       player: { name: playerDescription.name, ...player },
       otherPlayer: { name: otherPlayerDescription.name, ...otherPlayer },
@@ -402,6 +465,9 @@ export const queryPromptData = internalQuery({
         ...otherAgent,
       },
       lastConversation,
+      mood: moodRow
+        ? { mood: moodRow.mood, moodReason: moodRow.moodReason }
+        : null,
     };
   },
 });

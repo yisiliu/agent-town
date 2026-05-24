@@ -37,6 +37,13 @@ crons.interval(
   { minutes: 1 },
   ref.ours.crons.engineWatchdogMutation.default,
 );
+
+// Mood decay — every 3 minutes, drift stale moods one step toward neutral.
+crons.interval(
+  'mood-decay',
+  { minutes: 3 },
+  ref.ours.crons.moodDecay.default,
+);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default crons;
