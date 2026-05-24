@@ -771,6 +771,30 @@ ${listCandidates(aliveCands, nameMap)}
 Respond JSON: {"thinking":"...","action":{"badge_decision":"pass:<id>" or "destroy"}}`;
   }
 
+  if (phase === 'day-pk-speech' && kind === 'day-pk-speech') {
+    return `Day ${state.day + 1} — 白天平票 PK 加赛发言。你与其他平票者再讲一轮，把台下的票拉向你的对手。
+
+PUBLIC LOG:
+${renderPublicLog(state.publicLog.slice(-8), nameMap)}
+
+TIED CANDIDATES:
+${listCandidates(state.dayPkCandidates ?? [], nameMap)}${hints}${grounding}
+
+Respond JSON: {"thinking":"...","say":"<your PK speech, 1-2 sentences>"}`;
+  }
+
+  if (phase === 'day-pk-vote' && kind === 'day-pk-vote') {
+    return `Day ${state.day + 1} — 白天平票 PK 投票。你是台下（非 PK 候选人），从平票者中选一个放逐。再平则今天平安无人出局。
+
+PUBLIC LOG:
+${renderPublicLog(state.publicLog.slice(-8), nameMap)}
+
+PK CANDIDATES:
+${listCandidates(state.dayPkCandidates ?? [], nameMap)}${hints}${grounding}
+
+Respond JSON: {"thinking":"...","say":"<one sentence>","action":{"target":"<one of the PK candidate ids>"}}`;
+  }
+
   if (phase === 'hunter-shoot' && kind === 'hunter-shoot') {
     const candidates = state.alive;
     return `You are the dying hunter. You may shoot ONE alive player down with you. (If you were poisoned, this turn shouldn't have happened — but if you're here, shoot.)
@@ -882,6 +906,18 @@ export function parseTurnText(
   if (kind === 'sheriff-pk-speech') {
     if (!say) return { ok: false, error: `sheriff-pk-speech requires "say"` };
     return { ok: true, data: { thinking, say } };
+  }
+
+  if (kind === 'day-pk-speech') {
+    if (!say) return { ok: false, error: `day-pk-speech requires "say"` };
+    return { ok: true, data: { thinking, say } };
+  }
+
+  if (kind === 'day-pk-vote') {
+    const target = typeof action?.target === 'string' ? action.target : undefined;
+    if (!target) return { ok: false, error: `day-pk-vote requires action.target` };
+    if (!allowed.includes(target)) return { ok: false, error: `day-pk-vote target "${target}" not in alive set` };
+    return { ok: true, data: { thinking, say, target } };
   }
 
   if (kind === 'guard-protect') {

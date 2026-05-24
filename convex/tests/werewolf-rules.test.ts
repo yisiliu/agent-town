@@ -1863,3 +1863,211 @@ describe('werewolf rules — night-dead sheriff badge (黄昏决策, no last-wor
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Helper: drive a 9p game from initialState all the way to the start of
+// day-vote on Day 1, with NO sheriff elected (skipSheriffElection). All
+// night actions are trivially applied. Returns the state at day-vote.
+// ---------------------------------------------------------------------------
+function gameAtDayVoteNoSheriff(): { s: WerewolfState; alive: Id<'twins'>[] } {
+  let s = advanceToWerewolf(initialState(nine, 42));
+  const wolves = byRole(s, 'werewolf');
+  const seer = byRole(s, 'seer')[0]!;
+  const witch = byRole(s, 'witch')[0]!;
+  const villager = byRole(s, 'villager')[0]!;
+
+  for (const w of wolves) {
+    s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+  }
+  s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+  s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+  s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+  s = skipSheriffElection(s);
+
+  // Drive through day-speak
+  while (s.phase === 'day-speak') {
+    const plan = planNextTurn(s)!;
+    s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: plan.actorTwinId!, text: 'ok' });
+  }
+  expect(s.phase).toBe('day-vote');
+  return { s, alive: s.alive.slice() };
+}
+
+describe('werewolf rules — 白天平票 PK', () => {
+  it('day-vote tie enters day-pk-speech with the tied set; 台下 (PK者不投) revote elects one', () => {
+    const { s: base } = gameAtDayVoteNoSheriff();
+    // Manufacture a 2-way tie: half of alive vote A, other half vote B
+    // Pick two players as the PK candidates (pkA and pkB)
+    const alive = base.alive.slice();
+    const pkA = alive[0]!;
+    const pkB = alive[1]!;
+    // voters: alive[2..] vote for pkA, and alive that vote pkB = alive[1..half]
+    // Simple: first floor(n/2) vote pkA, rest vote pkB → tie when n is even
+    // alive has 8 after night-1 kill. Split 4-4 between pkA and pkB.
+    let s = base;
+    for (let i = 0; i < alive.length; i++) {
+      const voter = s.alive[s.cursor]!;
+      const target = i < 4 ? pkA : pkB;
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: voter, data: { target } });
+    }
+    // Should enter day-pk-speech, not night-guard
+    expect(s.phase).toBe('day-pk-speech');
+    // dayPkCandidates should be exactly [pkA, pkB] (both tied leaders)
+    const cands = (s as unknown as { dayPkCandidates?: Id<'twins'>[] }).dayPkCandidates ?? [];
+    expect(cands).toHaveLength(2);
+    expect(cands).toContain(pkA);
+    expect(cands).toContain(pkB);
+    // dayPkActive should be true
+    expect((s as unknown as { dayPkActive?: boolean }).dayPkActive).toBe(true);
+
+    // Drive PK speeches: planNextTurn should give each candidate a turn
+    const speakActors: Id<'twins'>[] = [];
+    while (s.phase === 'day-pk-speech') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-speech', kind: 'system', actorTwinId: null });
+        break;
+      }
+      speakActors.push(plan.actorTwinId!);
+      s = applyTurn(s, { phase: 'day-pk-speech', kind: 'day-pk-speech', actorTwinId: plan.actorTwinId!, text: 'PK speech' });
+    }
+    // Both PK candidates spoke
+    expect(speakActors).toContain(pkA);
+    expect(speakActors).toContain(pkB);
+    expect(s.phase).toBe('day-pk-vote');
+
+    // Drive PK vote: PK candidates should NEVER be offered a vote turn
+    const voterActors: Id<'twins'>[] = [];
+    while (s.phase === 'day-pk-vote') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-vote', kind: 'system', actorTwinId: null });
+        break;
+      }
+      const actor = plan.actorTwinId!;
+      // PK candidates must NOT be actors during day-pk-vote
+      expect(cands).not.toContain(actor);
+      voterActors.push(actor);
+      // All台下 vote for pkB to ensure a clear winner
+      s = applyTurn(s, { phase: 'day-pk-vote', kind: 'day-pk-vote', actorTwinId: actor, data: { target: pkB } });
+    }
+    // The 台下 players (alive minus cands) all voted
+    const electorate = alive.filter((id) => !cands.includes(id));
+    for (const e of electorate) {
+      expect(voterActors).toContain(e);
+    }
+    // pkB is lynched → last-words
+    expect(s.phase).toBe('last-words');
+    expect(s.lastWordsQueue).toContain(pkB);
+    expect(s.alive).not.toContain(pkB);
+    // PK state cleared
+    expect((s as unknown as { dayPkActive?: boolean }).dayPkActive).toBe(false);
+    expect((s as unknown as { dayPkCandidates?: unknown }).dayPkCandidates).toBeUndefined();
+  });
+
+  it('double tie → 平安日, no lynch, advances to next night', () => {
+    const { s: base } = gameAtDayVoteNoSheriff();
+    const alive = base.alive.slice();
+    const pkA = alive[0]!;
+    const pkB = alive[1]!;
+
+    // Round 1: tie 4-4 → enter PK
+    let s = base;
+    for (let i = 0; i < alive.length; i++) {
+      const voter = s.alive[s.cursor]!;
+      const target = i < 4 ? pkA : pkB;
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: voter, data: { target } });
+    }
+    expect(s.phase).toBe('day-pk-speech');
+
+    // Drive PK speeches
+    while (s.phase === 'day-pk-speech') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-speech', kind: 'system', actorTwinId: null });
+        break;
+      }
+      s = applyTurn(s, { phase: 'day-pk-speech', kind: 'day-pk-speech', actorTwinId: plan.actorTwinId!, text: 'PK speech' });
+    }
+    expect(s.phase).toBe('day-pk-vote');
+
+    // Drive PK vote: tie again — electorate splits evenly on pkA and pkB
+    const cands = (s as unknown as { dayPkCandidates?: Id<'twins'>[] }).dayPkCandidates ?? [];
+    const electorate = s.alive.filter((id) => !cands.includes(id));
+    // Split electorate evenly for a tie
+    let voteIdx = 0;
+    while (s.phase === 'day-pk-vote') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-vote', kind: 'system', actorTwinId: null });
+        break;
+      }
+      const actor = plan.actorTwinId!;
+      const target = voteIdx % 2 === 0 ? pkA : pkB;
+      voteIdx++;
+      s = applyTurn(s, { phase: 'day-pk-vote', kind: 'day-pk-vote', actorTwinId: actor, data: { target } });
+    }
+    // Result: 平安日 → next night
+    expect(s.phase).toBe('night-guard');
+    expect(s.day).toBe(1); // advanced to next day
+    // PK state cleaned up
+    expect((s as unknown as { dayPkActive?: boolean }).dayPkActive).toBe(false);
+    expect((s as unknown as { dayPkCandidates?: unknown }).dayPkCandidates).toBeUndefined();
+    expect((s as unknown as { dayPkVotes?: unknown }).dayPkVotes).toBeUndefined();
+  });
+
+  it('1.5x NOT counted when the sheriff is a PK candidate', () => {
+    // Directly inject state: sheriff is a PK candidate, so they don't vote in
+    // the PK round, and their 1.5x weight must not tip the tally.
+    const { s: base } = gameAtDayVoteNoSheriff();
+    // Pick two players as PK candidates; designate alive[0] as the sheriff.
+    const pkA = base.alive[0]!; // will be the sheriff
+    const pkB = base.alive[1]!;
+    // Inject state: day-pk-speech phase, pkA and pkB as candidates, sheriff=pkA.
+    let s: WerewolfState = {
+      ...base,
+      phase: 'day-pk-speech',
+      dayPkActive: true,
+      dayPkCandidates: [pkA, pkB],
+      dayPkVotes: {},
+      speechCursor: 0,
+      sheriff: pkA,
+      sheriffHas1_5x: true,
+    };
+
+    // Drive PK speeches
+    while (s.phase === 'day-pk-speech') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-speech', kind: 'system', actorTwinId: null });
+        break;
+      }
+      s = applyTurn(s, { phase: 'day-pk-speech', kind: 'day-pk-speech', actorTwinId: plan.actorTwinId!, text: 'PK speech' });
+    }
+    expect(s.phase).toBe('day-pk-vote');
+
+    const cands = (s as unknown as { dayPkCandidates?: Id<'twins'>[] }).dayPkCandidates ?? [];
+    expect(cands).toContain(pkA); // sheriff is a PK candidate
+
+    // Verify: sheriff (pkA) is NOT offered a vote turn during day-pk-vote.
+    // If they WERE offered a vote and their 1.5x applied, pkA could skew the tally.
+    while (s.phase === 'day-pk-vote') {
+      const plan = planNextTurn(s);
+      if (!plan || plan.kind === 'system') {
+        s = applyTurn(s, { phase: 'day-pk-vote', kind: 'system', actorTwinId: null });
+        break;
+      }
+      const actor = plan.actorTwinId!;
+      // Sheriff who is a PK candidate must NOT vote
+      expect(actor).not.toBe(pkA);
+      // All 台下 vote for pkB to produce a clear winner without 1.5x
+      s = applyTurn(s, { phase: 'day-pk-vote', kind: 'day-pk-vote', actorTwinId: actor, data: { target: pkB } });
+    }
+    // pkB lynched (sheriff's 1.5x was NOT applied since sheriff is a PK candidate)
+    expect(s.alive).not.toContain(pkB);
+    expect(s.alive).toContain(pkA); // pkA (sheriff) survived PK
+    // Confirm sheriff 1.5x was suppressed: if it had applied, pkA would have
+    // had a weighted vote and could have redirected, but since pkA didn't vote,
+    // all votes went to pkB → clear lynch of pkB.
+  });
+});

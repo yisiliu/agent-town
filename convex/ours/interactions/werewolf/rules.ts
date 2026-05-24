@@ -61,6 +61,9 @@ function clone(s: WerewolfState): WerewolfState {
     sheriffElectionDone: s.sheriffElectionDone,
     sheriffPkActive: s.sheriffPkActive,
     sheriffPkSpeechCursor: s.sheriffPkSpeechCursor,
+    dayPkActive: s.dayPkActive,
+    dayPkCandidates: s.dayPkCandidates?.slice(),
+    dayPkVotes: s.dayPkVotes ? { ...s.dayPkVotes } : undefined,
     cursor: s.cursor,
     pendingVotes: { ...s.pendingVotes },
     speechOrder: s.speechOrder?.slice(),
@@ -175,6 +178,9 @@ export function initialState(
     sheriffElectionDone: false,
     sheriffPkActive: false,
     sheriffPkSpeechCursor: 0,
+    dayPkActive: false,
+    dayPkCandidates: undefined,
+    dayPkVotes: undefined,
     cursor: 0,
     pendingVotes: {},
     speechOrder: undefined,
@@ -280,6 +286,9 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.speechOrder = undefined;
     next.speechCursor = undefined;
     next.speechDirection = undefined;
+    next.dayPkActive = false;
+    next.dayPkCandidates = undefined;
+    next.dayPkVotes = undefined;
   }
   return next;
 }
@@ -472,6 +481,25 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     return { phase: 'day-vote', kind: 'vote', actorTwinId: actor, visibility: 'public' };
   }
 
+  if (s.phase === 'day-pk-speech') {
+    const actor = (s.dayPkCandidates ?? [])[s.speechCursor ?? 0];
+    if (!actor) {
+      return { phase: 'day-pk-speech', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'PK speech round complete.' };
+    }
+    return { phase: 'day-pk-speech', kind: 'day-pk-speech', actorTwinId: actor, visibility: 'public' };
+  }
+
+  if (s.phase === 'day-pk-vote') {
+    const cands = s.dayPkCandidates ?? [];
+    const votes = s.dayPkVotes ?? {};
+    const remaining = s.alive.filter((id) => !cands.includes(id) && !votes[asKey(id)]);
+    const actor = remaining[0];
+    if (!actor) {
+      return { phase: 'day-pk-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'PK vote ends.' };
+    }
+    return { phase: 'day-pk-vote', kind: 'day-pk-vote', actorTwinId: actor, visibility: 'public' };
+  }
+
   if (s.phase === 'day-resolve') {
     return { phase: 'day-resolve', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'The village tallies votes.' };
   }
@@ -602,25 +630,20 @@ function applyDayResolve(s: WerewolfState): WerewolfState {
         : 1.0;
     tally[target] = (tally[target] || 0) + weight;
   }
+
   let max = 0;
-  let winner: string | null = null;
-  let tied = false;
+  const leaders: string[] = [];
   for (const [target, n] of Object.entries(tally)) {
-    if (n > max) {
-      max = n;
-      winner = target;
-      tied = false;
-    } else if (n === max) {
-      tied = true;
-    }
+    if (n > max) { max = n; leaders.length = 0; leaders.push(target); }
+    else if (n === max) { leaders.push(target); }
   }
   next.pendingVotes = {};
 
-  if (winner && !tied && max > 0) {
-    const lynched = winner as unknown as Id<'twins'>;
+  if (leaders.length === 1 && max > 0) {
+    const lynched = leaders[0] as unknown as Id<'twins'>;
     next.alive = next.alive.filter((id) => id !== lynched);
     next.publicLog.push(
-      `Day ${next.day + 1}: The village voted to lynch ${winner}.`,
+      `Day ${next.day + 1}: The village voted to lynch ${leaders[0]}.`,
     );
     // Lynched player gets last-words.
     next.lastWordsQueue.push(lynched);
@@ -633,12 +656,29 @@ function applyDayResolve(s: WerewolfState): WerewolfState {
     // If the lynched player is the sheriff, the badge decision happens in
     // their last-words turn. The badge defaults to destroyed if they don't
     // explicitly pass (handled in the last-words applyTurn).
-  } else {
-    next.publicLog.push(
-      `Day ${next.day + 1}: The village deadlocked — no one was lynched.`,
-    );
+    return transitionAfterResolve(next, false);
   }
 
+  if (leaders.length >= 2 && max > 0 && !next.dayPkActive) {
+    // First daytime tie → PK round. Tied candidates re-speak, then 台下 revote.
+    const pkSet: Id<'twins'>[] = [];
+    for (const id of next.alive) {
+      if (leaders.includes(asKey(id))) pkSet.push(id);
+    }
+    next.dayPkCandidates = pkSet;
+    next.dayPkVotes = {};
+    next.dayPkActive = true;
+    next.speechCursor = 0;
+    next.publicLog.push(`Day ${next.day + 1}: 白天投票平票 (${leaders.length} tied) — 进入 PK 加赛。`);
+    next.phase = 'day-pk-speech';
+    return next;
+  }
+
+  // No votes, or already in PK and STILL tied → 平安日 (deadlock branch).
+  next.publicLog.push(`Day ${next.day + 1}: The village deadlocked — no one was lynched.`);
+  next.dayPkActive = false;
+  next.dayPkCandidates = undefined;
+  next.dayPkVotes = undefined;
   return transitionAfterResolve(next, false);
 }
 
@@ -693,6 +733,9 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.speechOrder = undefined;
     next.speechCursor = undefined;
     next.speechDirection = undefined;
+    next.dayPkActive = false;
+    next.dayPkCandidates = undefined;
+    next.dayPkVotes = undefined;
     next.day += 1;
     next.phase = 'night-guard';
 
@@ -1174,6 +1217,86 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.cursor += 1;
     if (next.cursor >= next.alive.length) {
       return applyDayResolve(next);
+    }
+    return next;
+  }
+
+  // ---- day-pk-speech ----
+  if (s.phase === 'day-pk-speech' && (t.kind === 'day-pk-speech' || t.kind === 'abstain' || t.kind === 'system')) {
+    const next = clone(s);
+    if (t.kind !== 'system') {
+      next.speechCursor = (next.speechCursor ?? 0) + 1;
+    }
+    if (t.kind === 'system' || (next.speechCursor ?? 0) >= (next.dayPkCandidates ?? []).length) {
+      next.phase = 'day-pk-vote';
+      next.dayPkVotes = next.dayPkVotes ?? {};
+    }
+    return next;
+  }
+
+  // ---- day-pk-vote ----
+  if (s.phase === 'day-pk-vote' && (t.kind === 'day-pk-vote' || t.kind === 'abstain' || t.kind === 'system')) {
+    const next = clone(s);
+    const cands = next.dayPkCandidates ?? [];
+
+    if (t.kind !== 'system' && t.actorTwinId) {
+      const voterKey = asKey(t.actorTwinId);
+      const isElectorate = !cands.includes(t.actorTwinId);
+      const votes = next.dayPkVotes ?? {};
+      if (isElectorate && !votes[voterKey]) {
+        const target = (t.data as { target?: Id<'twins'> })?.target;
+        if (t.kind !== 'abstain' && target && cands.includes(target)) {
+          votes[voterKey] = asKey(target);
+        } else {
+          votes[voterKey] = '_abstain';
+        }
+        next.dayPkVotes = votes;
+      }
+    }
+
+    const electorate = next.alive.filter((id) => !cands.includes(id));
+    const votes = next.dayPkVotes ?? {};
+    const allVoted = t.kind === 'system' || electorate.every((id) => votes[asKey(id)]);
+
+    if (allVoted) {
+      // Tally. Sheriff gets 1.5x ONLY when sheriff is part of the electorate
+      // (i.e. NOT a PK candidate) — spec §6.
+      const sheriffIsPk = next.sheriff ? cands.includes(next.sheriff) : false;
+      const tally: Record<string, number> = {};
+      for (const [voterKey, v] of Object.entries(votes)) {
+        if (v === '_abstain') continue;
+        const weight =
+          next.sheriff && asKey(next.sheriff) === voterKey && next.sheriffHas1_5x && !sheriffIsPk
+            ? 1.5
+            : 1.0;
+        tally[v] = (tally[v] || 0) + weight;
+      }
+      let max = 0;
+      const leaders: string[] = [];
+      for (const [c, n] of Object.entries(tally)) {
+        if (n > max) { max = n; leaders.length = 0; leaders.push(c); }
+        else if (n === max) { leaders.push(c); }
+      }
+      if (leaders.length === 1 && max > 0) {
+        const lynched = leaders[0] as unknown as Id<'twins'>;
+        next.alive = next.alive.filter((id) => id !== lynched);
+        next.publicLog.push(`Day ${next.day + 1}: PK 投票放逐了 ${leaders[0]}.`);
+        next.lastWordsQueue.push(lynched);
+        if (next.roles[asKey(lynched)] === 'hunter') {
+          next.pendingHunterShot = lynched;
+          next.phaseAfterHunterShot = 'night-werewolf';
+        }
+        next.dayPkActive = false;
+        next.dayPkCandidates = undefined;
+        next.dayPkVotes = undefined;
+        return transitionAfterResolve(next, false);
+      }
+      // PK still tied → 平安日 (reuse deadlock branch).
+      next.publicLog.push(`Day ${next.day + 1}: PK 仍平票 — 平安日，无人出局。`);
+      next.dayPkActive = false;
+      next.dayPkCandidates = undefined;
+      next.dayPkVotes = undefined;
+      return transitionAfterResolve(next, false);
     }
     return next;
   }

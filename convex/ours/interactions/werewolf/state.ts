@@ -18,6 +18,10 @@ export type WerewolfPhase =
   // PK vote — same 警下 vote pool from round 1, but now voting only on
   // the tied-PK candidates.
   | 'sheriff-pk-vote'
+  // PK speech round triggered by a day-vote tie. Tied candidates re-speak once.
+  | 'day-pk-speech'
+  // PK revote — only 台下 (alive minus PK candidates) vote on the tied set.
+  | 'day-pk-vote'
   // Seer peeks one player.
   | 'night-seer'
   // Witch acts: optional save on tonight's kill target, optional poison
@@ -148,6 +152,15 @@ export interface WerewolfState {
   sheriffPkActive: boolean;
   // PK speech cursor (index into sheriffCandidates, which is now the tied set).
   sheriffPkSpeechCursor: number;
+
+  // ---- day PK state (triggered when day-vote ties) ----
+  // Set to true when day-vote ties and we enter day-pk-speech.
+  // Guards against a second tie falling into another PK (双平 → 平安日).
+  dayPkActive?: boolean;
+  // The tied candidates for the day PK round (ids of alive tied voters).
+  dayPkCandidates?: Id<'twins'>[];
+  // Per-voter votes during day-pk-vote. voterId → targetId or '_abstain'.
+  dayPkVotes?: Record<string, string>;
 
   // ---- day state ----
   cursor: number; // index into alive[] for day-speak / day-vote
