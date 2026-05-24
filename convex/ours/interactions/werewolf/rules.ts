@@ -189,10 +189,12 @@ export function checkWin(s: WerewolfState): { ended: boolean; winner?: string } 
   // https://www.gameres.com/753084.html (Tencent official rules).
   const wolves = aliveByRole(s, 'werewolf');
   if (wolves.length === 0) return { ended: true, winner: 'villagers' };
-  const aliveGods =
-    aliveByRole(s, 'seer').length +
-    aliveByRole(s, 'witch').length +
-    aliveByRole(s, 'hunter').length;
+  // Gods = any alive role that is neither wolf nor villager (seer/witch/hunter/guard).
+  // Generic count auto-adapts to both the 9p (no guard) and 12p (with guard) boards.
+  const aliveGods = s.alive.filter((id) => {
+    const r = s.roles[asKey(id)];
+    return r !== 'werewolf' && r !== 'villager';
+  }).length;
   const aliveCivilians = aliveByRole(s, 'villager').length;
   if (aliveGods === 0) return { ended: true, winner: 'werewolves' };
   if (aliveCivilians === 0) return { ended: true, winner: 'werewolves' };

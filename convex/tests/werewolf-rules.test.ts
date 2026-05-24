@@ -773,6 +773,19 @@ describe('werewolf rules — checkWin (屠边)', () => {
   it('not ended at game start', () => {
     expect(checkWin(initialState(nine, 42))).toEqual({ ended: false });
   });
+
+  it('12p 屠神边 needs ALL gods incl. guard dead', () => {
+    const s0 = initialState(twelve, 7);
+    const wolves = byRole(s0, 'werewolf');
+    const villagers = byRole(s0, 'villager');
+    const guard = byRole(s0, 'guard')[0]!;
+    // wolves + villagers + guard alive (guard is a god) → NOT ended yet
+    const withGuard: WerewolfState = { ...s0, alive: [...wolves, ...villagers, guard] };
+    expect(checkWin(withGuard)).toEqual({ ended: false });
+    // drop the guard too → all gods dead → wolves win
+    const noGods: WerewolfState = { ...s0, alive: [...wolves, ...villagers] };
+    expect(checkWin(noGods)).toEqual({ ended: true, winner: 'werewolves' });
+  });
 });
 
 describe('werewolf rules — summarizeFor (post-game memory)', () => {
