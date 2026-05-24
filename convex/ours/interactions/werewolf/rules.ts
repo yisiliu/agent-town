@@ -62,6 +62,9 @@ function clone(s: WerewolfState): WerewolfState {
     sheriffPkSpeechCursor: s.sheriffPkSpeechCursor,
     cursor: s.cursor,
     pendingVotes: { ...s.pendingVotes },
+    speechOrder: s.speechOrder?.slice(),
+    speechCursor: s.speechCursor,
+    speechDirection: s.speechDirection,
     publicLog: s.publicLog.slice(),
     seerKnowledge: s.seerKnowledge.slice(),
     day: s.day,
@@ -173,6 +176,9 @@ export function initialState(
     sheriffPkSpeechCursor: 0,
     cursor: 0,
     pendingVotes: {},
+    speechOrder: undefined,
+    speechCursor: undefined,
+    speechDirection: undefined,
     publicLog: [`Day 0: Game begins with ${participants.length} players.`],
     seerKnowledge: [],
     day: 0,
@@ -206,6 +212,24 @@ export function checkWin(s: WerewolfState): { ended: boolean; winner?: string } 
   return { ended: false };
 }
 
+// Build a seat-ordered list of alive players starting AFTER the anchor seat.
+// direction='right' → ascending seat index (死右 / 警右); 'left' → descending.
+function computeSpeechOrder(
+  s: WerewolfState,
+  anchorSeat: number,
+  direction: 'left' | 'right',
+): Id<'twins'>[] {
+  const n = s.participants.length;
+  const order: Id<'twins'>[] = [];
+  const step = direction === 'right' ? 1 : -1;
+  for (let k = 1; k <= n; k++) {
+    const seat = ((anchorSeat + step * k) % n + n) % n;
+    const id = s.participants[seat]!;
+    if (s.alive.includes(id)) order.push(id);
+  }
+  return order;
+}
+
 // Decide the next phase after a resolve / death event.
 function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): WerewolfState {
   const next = clone(s);
@@ -224,14 +248,15 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     return next;
   }
   if (fromNightResolve) {
-    // Day-1 morning: run sheriff election before day-speak.
+    // Day-1 morning: run sheriff election before day-direction.
     if (!next.sheriffElectionDone) {
       next.phase = 'sheriff-claim';
       next.sheriffClaimCursor = 0;
       next.cursor = 0;
       return next;
     }
-    next.phase = 'day-speak';
+    next.phase = 'day-direction';
+    next.speechCursor = 0;
     next.cursor = 0;
   } else {
     // From day-resolve: start a new night.
@@ -245,6 +270,10 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.nightDeaths = [];
     next.poisonedThisNight = [];
     next.guardTargetThisNight = undefined;
+    next.lastWordsFromNightResolve = undefined;
+    next.speechOrder = undefined;
+    next.speechCursor = undefined;
+    next.speechDirection = undefined;
   }
   return next;
 }
@@ -387,6 +416,13 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
       return { phase: 'sheriff-pull-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff to pull-vote.' };
     }
     return { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: s.sheriff, visibility: 'public' };
+  }
+
+  if (s.phase === 'day-direction') {
+    if (!s.sheriff || !s.alive.includes(s.sheriff)) {
+      return { phase: 'day-direction', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff — engine sets speech order.' };
+    }
+    return { phase: 'day-direction', kind: 'day-direction', actorTwinId: s.sheriff, visibility: 'public' };
   }
 
   if (s.phase === 'hunter-shoot') {
@@ -629,6 +665,10 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.nightDeaths = [];
     next.poisonedThisNight = [];
     next.guardTargetThisNight = undefined;
+    next.lastWordsFromNightResolve = undefined;
+    next.speechOrder = undefined;
+    next.speechCursor = undefined;
+    next.speechDirection = undefined;
     next.day += 1;
     next.phase = 'night-guard';
 
@@ -822,12 +862,13 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     if (next.sheriffClaimCursor >= next.alive.length) {
       // Claims done. Decide what comes next.
       if (next.sheriffCandidates.length === 0) {
-        // Nobody ran → no sheriff this game. Advance to day-speak.
+        // Nobody ran → no sheriff this game. Advance to day-direction.
         next.publicLog.push(
           `Day ${next.day + 1}: 无人上警 — the village has no sheriff this game.`,
         );
         next.sheriffElectionDone = true;
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       } else if (next.sheriffCandidates.length === next.alive.length) {
         // Everyone ran → no 警下 to vote → 流警 (no sheriff).
@@ -836,7 +877,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         );
         next.sheriffElectionDone = true;
         next.sheriffCandidates = [];
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       } else if (next.sheriffCandidates.length === 1) {
         // Unopposed → auto-elected.
@@ -848,7 +890,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         );
         next.sheriffElectionDone = true;
         next.sheriffCandidates = [];
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       } else {
         // Multiple candidates → 警下 vote.
@@ -920,7 +963,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         next.sheriffElectionDone = true;
         next.sheriffPkActive = false;
         next.sheriffPkSpeechCursor = 0;
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       } else if (max === 0 || leaders.length === 0) {
         // No one received votes — 流警.
@@ -931,7 +975,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         next.sheriffVotes = {};
         next.sheriffElectionDone = true;
         next.sheriffPkActive = false;
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       } else if (!next.sheriffPkActive) {
         // First tie → enter PK round. Per modern Tencent / 口袋狼人杀
@@ -958,7 +1003,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         next.sheriffVotes = {};
         next.sheriffElectionDone = true;
         next.sheriffPkActive = false;
-        next.phase = 'day-speak';
+        next.phase = 'day-direction';
+        next.speechCursor = 0;
         next.cursor = 0;
       }
     }
@@ -986,7 +1032,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.sheriffVotes = {};
     next.sheriffElectionDone = true;
     next.sheriffPkActive = false;
-    next.phase = 'day-speak';
+    next.phase = 'day-direction';
+    next.speechCursor = 0;
     next.cursor = 0;
     return next;
   }
@@ -996,6 +1043,31 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     const next = clone(s);
     next.phase = 'day-vote';
     next.cursor = 0;
+    return next;
+  }
+
+  // ---- day-direction ----
+  if (s.phase === 'day-direction' && (t.kind === 'day-direction' || t.kind === 'system' || t.kind === 'abstain')) {
+    const next = clone(s);
+    const oneDied = next.nightDeaths.length === 1;
+    // Anchor: lone victim's seat when exactly one died (死左/死右);
+    // otherwise seat 0 (警左/警右 with sheriff, or pure fallback without).
+    let anchorSeat = 0;
+    if (oneDied) {
+      anchorSeat = next.participants.indexOf(next.nightDeaths[0]!);
+    }
+    // Direction: sheriff's explicit choice, else engine default 'right'
+    // (死右 ≡ next seat after the victim; 平安夜/双死 ≡ from seat 0 forward).
+    let direction: 'left' | 'right' = 'right';
+    if (t.kind === 'day-direction') {
+      const dec = (t.data as { direction?: string } | undefined)?.direction;
+      if (dec === 'left') direction = 'left';
+      else direction = 'right';
+    }
+    next.speechDirection = direction;
+    next.speechOrder = computeSpeechOrder(next, anchorSeat, direction);
+    next.speechCursor = 0;
+    next.phase = 'day-speak';
     return next;
   }
 

@@ -45,6 +45,9 @@ export type WerewolfPhase =
   // their last-words ALSO carries their badge decision (pass to <id> /
   // destroy).
   | 'last-words'
+  // Sheriff (if alive) decides speech direction for the day. Engine fallback
+  // when no sheriff. Computes and snapshots speechOrder before day-speak.
+  | 'day-direction'
   // Each alive player speaks once per day (fixed seat order in v1).
   | 'day-speak'
   // Each alive player votes once.
@@ -142,6 +145,15 @@ export interface WerewolfState {
   // ---- day state ----
   cursor: number; // index into alive[] for day-speak / day-vote
   pendingVotes: Record<string, string>; // voterId → targetId
+
+  // ---- day-direction / speech-order state ----
+  // Seat-ordered list of alive players for today's day-speak, computed by
+  // the day-direction phase. Undefined until direction is decided each day.
+  speechOrder?: Id<'twins'>[];
+  // Index into speechOrder[] — which player speaks next.
+  speechCursor?: number;
+  // The direction chosen ('left' or 'right') for this day's speech order.
+  speechDirection?: 'left' | 'right';
 
   // ---- logs / private knowledge ----
   publicLog: string[];

@@ -660,6 +660,22 @@ Reminder: hoarding potions is the most common witch-loss. If you reach Day 3 wit
 Respond JSON: {"thinking":"...","action":{...}}`;
   }
 
+  if (phase === 'day-direction' && kind === 'day-direction') {
+    const oneDied = state.nightDeaths.length === 1;
+    const victim = oneDied ? (nameMap[state.nightDeaths[0]! as unknown as string] ?? state.nightDeaths[0]) : null;
+    const choiceText = oneDied
+      ? `昨夜 ${victim} 出局。请选择发言方向：**死左** (从死者左侧顺位起) 或 **死右** (从死者右侧顺位起)。`
+      : `昨夜${state.nightDeaths.length === 0 ? '平安无事' : '多人出局'}。请选择发言方向：**警左** 或 **警右** (从你的位置起)。`;
+    return `It is day ${state.day + 1}. 你是警长，请决定今天的发言顺序方向。
+
+${choiceText}
+
+PUBLIC LOG:
+${renderPublicLog(state.publicLog.slice(-8), nameMap)}
+
+Respond JSON: {"thinking":"...","say":"<one sentence>","action":{"direction":"left" | "right"}}`;
+  }
+
   if (phase === 'day-speak' && kind === 'speak') {
     const role = state.roles[actorTwinId as unknown as string];
     const youAreWolf = role === 'werewolf';
@@ -801,6 +817,11 @@ export function parseTurnText(
     if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote') {
       return { ok: true, data: { thinking, say, self_explode: true } };
     }
+  }
+
+  if (kind === 'day-direction') {
+    const direction = action?.direction === 'left' ? 'left' : 'right';
+    return { ok: true, data: { thinking, say, direction } };
   }
 
   if (kind === 'speak') {

@@ -49,6 +49,11 @@ function skipSheriffElection(s: WerewolfState): WerewolfState {
       data: { run: false },
     });
   }
+  // After sheriff election (or skipping it), drive through day-direction
+  // with a system engine-fallback turn so tests land on day-speak.
+  if (cur.phase === 'day-direction') {
+    cur = applyTurn(cur, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+  }
   return cur;
 }
 
@@ -467,15 +472,18 @@ describe('werewolf rules — sheriff election', () => {
     return s;
   }
 
-  it('all decline → no sheriff, advance to day-speak', () => {
+  it('all decline → no sheriff, advance to day-direction then day-speak', () => {
     let s = nightOneToSheriffClaim();
     while (s.phase === 'sheriff-claim') {
       const actor = s.alive[s.sheriffClaimCursor]!;
       s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: false } });
     }
-    expect(s.phase).toBe('day-speak');
+    expect(s.phase).toBe('day-direction');
     expect(s.sheriff).toBeUndefined();
     expect(s.sheriffElectionDone).toBe(true);
+    // Engine fallback: no sheriff → system turn → day-speak
+    s = applyTurn(s, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(s.phase).toBe('day-speak');
   });
 
   it('single candidate auto-elected with 1.5x weight', () => {
@@ -487,9 +495,12 @@ describe('werewolf rules — sheriff election', () => {
       const run = actor === candidate;
       s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run } });
     }
-    expect(s.phase).toBe('day-speak');
+    expect(s.phase).toBe('day-direction');
     expect(s.sheriff).toBe(candidate);
     expect(s.sheriffHas1_5x).toBe(true);
+    // Sheriff chooses direction (right by default)
+    s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: candidate, data: { direction: 'right' } });
+    expect(s.phase).toBe('day-speak');
   });
 
   it('multiple candidates → sheriff-vote phase', () => {
@@ -511,9 +522,12 @@ describe('werewolf rules — sheriff election', () => {
       const voter = remaining[0]!;
       s = applyTurn(s, { phase: 'sheriff-vote', kind: 'sheriff-vote', actorTwinId: voter, data: { target: candA } });
     }
-    expect(s.phase).toBe('day-speak');
+    expect(s.phase).toBe('day-direction');
     expect(s.sheriff).toBe(candA);
     expect(s.sheriffHas1_5x).toBe(true);
+    // Sheriff chooses direction
+    s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: candA, data: { direction: 'right' } });
+    expect(s.phase).toBe('day-speak');
   });
 
   it('sheriff vote 1.5x weight tips a tied tally', () => {
@@ -536,6 +550,9 @@ describe('werewolf rules — sheriff election', () => {
       });
     }
     expect(s.sheriff).toBe(sheriffCand);
+    // Sheriff auto-elected → day-direction, sheriff picks direction.
+    expect(s.phase).toBe('day-direction');
+    s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: sheriffCand, data: { direction: 'right' } });
 
     // Drive day-speak (8 alive after night-1 kill).
     while (s.phase === 'day-speak') {
@@ -576,6 +593,10 @@ describe('werewolf rules — sheriff election', () => {
       const actor = s.alive[s.sheriffClaimCursor]!;
       s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: actor === sheriffCand } });
     }
+    // day-direction: sheriff picks direction
+    if (s.phase === 'day-direction') {
+      s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: sheriffCand, data: { direction: 'right' } });
+    }
     // Drive day-speak
     while (s.phase === 'day-speak') {
       const actor = s.alive[s.cursor]!;
@@ -601,6 +622,10 @@ describe('werewolf rules — sheriff election', () => {
     while (s.phase === 'sheriff-claim') {
       const actor = s.alive[s.sheriffClaimCursor]!;
       s = applyTurn(s, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: actor === sheriffCand } });
+    }
+    // day-direction: sheriff picks direction
+    if (s.phase === 'day-direction') {
+      s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: sheriffCand, data: { direction: 'right' } });
     }
     while (s.phase === 'day-speak') {
       const actor = s.alive[s.cursor]!;
@@ -705,10 +730,13 @@ describe('werewolf rules — sheriff PK round', () => {
       const target = i < 4 ? candA : candB;
       s = applyTurn(s, { phase: 'sheriff-pk-vote', kind: 'sheriff-pk-vote', actorTwinId: pkVoters[i]!, data: { target } });
     }
-    expect(s.phase).toBe('day-speak');
+    expect(s.phase).toBe('day-direction');
     expect(s.sheriff).toBe(candA);
     expect(s.sheriffHas1_5x).toBe(true);
     expect(s.sheriffPkActive).toBe(false);
+    // Sheriff chooses direction to advance to day-speak
+    s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: candA, data: { direction: 'right' } });
+    expect(s.phase).toBe('day-speak');
   });
 
   it('second-tie (PK still tied) → 流警', () => {
@@ -737,9 +765,12 @@ describe('werewolf rules — sheriff PK round', () => {
       const target = i < 3 ? candA : candB;
       s = applyTurn(s, { phase: 'sheriff-pk-vote', kind: 'sheriff-pk-vote', actorTwinId: v2[i]!, data: { target } });
     }
-    expect(s.phase).toBe('day-speak');
+    expect(s.phase).toBe('day-direction');
     expect(s.sheriff).toBeUndefined();
     expect(s.sheriffElectionDone).toBe(true);
+    // No sheriff → engine fallback system turn
+    s = applyTurn(s, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(s.phase).toBe('day-speak');
   });
 });
 
@@ -1396,5 +1427,179 @@ describe('werewolf rules — 遗言不对称 (first-night only)', () => {
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.alive).not.toContain(vB);
     expect(s.lastWordsQueue).toEqual([]); // NO last-words on night 2
+  });
+});
+
+describe('werewolf rules — day-direction (发言顺序)', () => {
+  it('no sheriff → engine skips, snapshots speechOrder, lands on day-speak', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    if (s.phase === 'last-words') s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    s = skipSheriffElection(s);
+    // skipSheriffElection also applies the day-direction system turn, so we're at day-speak
+    // But we want to test day-direction specifically — let's do it more carefully:
+    // Re-do without skipSheriffElection's day-direction step
+    let s2 = advanceToWerewolf(initialState(nine, 42));
+    for (const w of wolves) s2 = applyTurn(s2, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    s2 = applyTurn(s2, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s2 = applyTurn(s2, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s2 = applyTurn(s2, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    if (s2.phase === 'last-words') s2 = applyTurn(s2, { phase: 'last-words', kind: 'last-words', actorTwinId: s2.lastWordsQueue[0], text: 'bye' });
+    // Manually skip sheriff-claim (all decline), arrive at day-direction
+    while (s2.phase === 'sheriff-claim') {
+      const actor = s2.alive[s2.sheriffClaimCursor]!;
+      s2 = applyTurn(s2, { phase: 'sheriff-claim', kind: 'sheriff-claim', actorTwinId: actor, data: { run: false } });
+    }
+    expect(s2.phase).toBe('day-direction');
+    // planNextTurn should return a system kind (no sheriff)
+    const plan = planNextTurn(s2)!;
+    expect(plan.kind).toBe('system');
+    // Apply engine fallback
+    s2 = applyTurn(s2, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(s2.phase).toBe('day-speak');
+    expect(s2.speechOrder).toBeDefined();
+    expect(s2.speechOrder!.every((id) => s2.alive.includes(id))).toBe(true);
+    expect(s2.speechOrder!.length).toBe(s2.alive.length);
+    expect(s2.speechCursor).toBe(0);
+  });
+
+  it('computeSpeechOrder: exactly-one-death → anchor at victim seat, direction right', () => {
+    // Build state: one death (villager at some seat), no sheriff.
+    // Verify that speechOrder[0] is the player in the seat immediately after (clockwise) the victim.
+    const s0 = initialState(nine, 42);
+    const villager = byRole(s0, 'villager')[0]!;
+    const victimSeat = s0.participants.indexOf(villager);
+    // Build a fake state with one night death and all others alive.
+    const fakeState: WerewolfState = {
+      ...s0,
+      alive: s0.participants.filter((id) => id !== villager),
+      nightDeaths: [villager],
+      phase: 'day-direction',
+      speechCursor: 0,
+      sheriff: undefined,
+    };
+    // Engine fallback (no sheriff, one death) → right direction from victim seat
+    const after = applyTurn(fakeState, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(after.phase).toBe('day-speak');
+    expect(after.speechOrder).toBeDefined();
+    expect(after.speechDirection).toBe('right');
+    // speechOrder[0] should be the first alive player clockwise after victim
+    const n = s0.participants.length;
+    let expectedFirst: Id<'twins'> | undefined;
+    for (let k = 1; k <= n; k++) {
+      const seat = (victimSeat + k) % n;
+      const id = s0.participants[seat]!;
+      if (after.alive.includes(id)) { expectedFirst = id; break; }
+    }
+    expect(after.speechOrder![0]).toBe(expectedFirst);
+    expect(after.speechOrder!.length).toBe(after.alive.length);
+  });
+
+  it('sheriff picks 死右 → speechOrder[0] is seat after victim', () => {
+    const s0 = initialState(nine, 42);
+    const villager = byRole(s0, 'villager')[0]!;
+    const sheriff = byRole(s0, 'seer')[0]!; // seer acts as sheriff for this test
+    const victimSeat = s0.participants.indexOf(villager);
+    const fakeState: WerewolfState = {
+      ...s0,
+      alive: s0.participants.filter((id) => id !== villager),
+      nightDeaths: [villager],
+      phase: 'day-direction',
+      speechCursor: 0,
+      sheriff,
+    };
+    const after = applyTurn(fakeState, {
+      phase: 'day-direction',
+      kind: 'day-direction',
+      actorTwinId: sheriff,
+      data: { direction: 'right' },
+    });
+    expect(after.phase).toBe('day-speak');
+    expect(after.speechDirection).toBe('right');
+    const n = s0.participants.length;
+    let expectedFirst: Id<'twins'> | undefined;
+    for (let k = 1; k <= n; k++) {
+      const seat = (victimSeat + k) % n;
+      const id = s0.participants[seat]!;
+      if (after.alive.includes(id)) { expectedFirst = id; break; }
+    }
+    expect(after.speechOrder![0]).toBe(expectedFirst);
+  });
+
+  it('sheriff picks 死左 → speechOrder[0] is seat before victim', () => {
+    const s0 = initialState(nine, 42);
+    const villager = byRole(s0, 'villager')[0]!;
+    const sheriff = byRole(s0, 'seer')[0]!;
+    const victimSeat = s0.participants.indexOf(villager);
+    const n = s0.participants.length;
+    const fakeState: WerewolfState = {
+      ...s0,
+      alive: s0.participants.filter((id) => id !== villager),
+      nightDeaths: [villager],
+      phase: 'day-direction',
+      speechCursor: 0,
+      sheriff,
+    };
+    const after = applyTurn(fakeState, {
+      phase: 'day-direction',
+      kind: 'day-direction',
+      actorTwinId: sheriff,
+      data: { direction: 'left' },
+    });
+    expect(after.speechDirection).toBe('left');
+    let expectedFirst: Id<'twins'> | undefined;
+    for (let k = 1; k <= n; k++) {
+      const seat = ((victimSeat - k) % n + n) % n;
+      const id = s0.participants[seat]!;
+      if (after.alive.includes(id)) { expectedFirst = id; break; }
+    }
+    expect(after.speechOrder![0]).toBe(expectedFirst);
+  });
+
+  it('平安夜 (0 deaths) → anchor seat 0, direction right by default', () => {
+    const s0 = initialState(nine, 42);
+    const fakeState: WerewolfState = {
+      ...s0,
+      nightDeaths: [],
+      phase: 'day-direction',
+      speechCursor: 0,
+      sheriff: undefined,
+    };
+    const after = applyTurn(fakeState, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(after.phase).toBe('day-speak');
+    expect(after.speechDirection).toBe('right');
+    // Anchor = seat 0 (participants[0]), direction right → speechOrder starts at seat 1's next alive
+    const n = s0.participants.length;
+    let expectedFirst: Id<'twins'> | undefined;
+    for (let k = 1; k <= n; k++) {
+      const seat = k % n;
+      const id = s0.participants[seat]!;
+      if (after.alive.includes(id)) { expectedFirst = id; break; }
+    }
+    expect(after.speechOrder![0]).toBe(expectedFirst);
+    expect(after.speechOrder!.length).toBe(after.alive.length);
+  });
+
+  it('speechOrder contains only alive players (not the dead anchor)', () => {
+    const s0 = initialState(nine, 42);
+    const villager = byRole(s0, 'villager')[0]!;
+    const fakeState: WerewolfState = {
+      ...s0,
+      alive: s0.participants.filter((id) => id !== villager),
+      nightDeaths: [villager],
+      phase: 'day-direction',
+      speechCursor: 0,
+      sheriff: undefined,
+    };
+    const after = applyTurn(fakeState, { phase: 'day-direction', kind: 'system', actorTwinId: null });
+    expect(after.speechOrder).not.toContain(villager);
+    expect(after.speechOrder!.length).toBe(after.alive.length);
   });
 });
