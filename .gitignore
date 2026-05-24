@@ -20,3 +20,6 @@ _generated/
 !ai-town-fork/convex/_generated/**
 *.log
 .claude/
+
+# git worktrees (superpowers)
+.worktrees/
