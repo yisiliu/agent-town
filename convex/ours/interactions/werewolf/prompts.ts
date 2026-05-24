@@ -758,6 +758,19 @@ You may reveal your real role + any special knowledge (seer checks, witch potion
 Respond JSON: {"thinking":"...","say":"<your last words, 1-3 sentences>"${isSheriff ? ',"action":{"badge_decision":"pass:<id>" or "destroy"}' : ''}}`;
   }
 
+  if (phase === 'sheriff-night-badge' && kind === 'sheriff-night-badge') {
+    const aliveCands = state.alive;
+    return `你（警长）昨夜被杀。你不发表遗言，但仍可处置警徽。
+- 传给某玩家: action.badge_decision = "pass:<twin_id>"（继承归票权 + 1.5 票）
+- 撕毁: action.badge_decision = "destroy"
+若不指定，默认撕毁。
+
+可传给的活人候选：
+${listCandidates(aliveCands, nameMap)}
+
+Respond JSON: {"thinking":"...","action":{"badge_decision":"pass:<id>" or "destroy"}}`;
+  }
+
   if (phase === 'hunter-shoot' && kind === 'hunter-shoot') {
     const candidates = state.alive;
     return `You are the dying hunter. You may shoot ONE alive player down with you. (If you were poisoned, this turn shouldn't have happened — but if you're here, shoot.)
@@ -834,6 +847,11 @@ export function parseTurnText(
     // Optional badge_decision for sheriff's last-words.
     const badgeDec = action && typeof action.badge_decision === 'string' ? action.badge_decision : undefined;
     return { ok: true, data: { thinking, say, badge_decision: badgeDec } };
+  }
+
+  if (kind === 'sheriff-night-badge') {
+    const badgeDec = action && typeof action.badge_decision === 'string' ? action.badge_decision : undefined;
+    return { ok: true, data: { thinking, badge_decision: badgeDec } };
   }
 
   if (kind === 'sheriff-claim') {

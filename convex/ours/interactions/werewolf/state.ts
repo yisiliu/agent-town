@@ -55,6 +55,9 @@ export type WerewolfPhase =
   // System: tally, apply lynch (last-words + maybe hunter-shoot enter
   // before day flips to night).
   | 'day-resolve'
+  // Dusk decision: night-dead sheriff transfers or destroys the badge.
+  // No last-words. Fires before day-direction on the morning after the kill.
+  | 'sheriff-night-badge'
   | 'ended';
 
 export type WolfTeamVote = { voterId: Id<'twins'>; targetId: Id<'twins'> };
@@ -122,6 +125,10 @@ export interface WerewolfState {
   // Set once on Day 1 after sheriff-vote resolves. Stays set until sheriff
   // dies (then either passes via lastWords.badgeDecision or undefined).
   sheriff?: Id<'twins'>;
+  // Transient flag: the id of a sheriff killed at night who has not yet made
+  // their badge decision. Set in applyNightResolve, consumed by the
+  // sheriff-night-badge phase handler, and cleared in clone/reset.
+  pendingSheriffBadge?: Id<'twins'>;
   // Whether the original sheriff (who got 1.5x) is still holding the badge.
   // Inheritors via 传警徽 get 归票 but NOT 1.5x.
   sheriffHas1_5x: boolean;

@@ -1670,3 +1670,196 @@ describe('werewolf rules — day-direction (发言顺序)', () => {
     expect(afterC.phase).not.toBe('day-speak');
   });
 });
+
+describe('werewolf rules — night-dead sheriff badge (黄昏决策, no last-words)', () => {
+  // Drive a 9p game to the sheriff-night-badge phase:
+  // Night-1 → kill a villager → witch skip → seer → resolve → N1 last-words
+  // → elect one sheriff (first alive player) → day-direction → day-speak
+  // → sheriff-pull-vote → day-vote (lynch a wolf, NOT the sheriff)
+  // → night-2 → wolves kill the sheriff → witch skip → seer → resolve
+  // → should land on sheriff-night-badge.
+  // Returns { state, sheriff, heir } where heir is an alive non-sheriff player.
+  function gameWithSheriffKilledNight2(): { state: WerewolfState; sheriff: Id<'twins'>; heir: Id<'twins'> } {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villagers = byRole(s, 'villager');
+    // N1: kill a villager (not the future sheriff, not a wolf)
+    const n1Kill = villagers[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: n1Kill } });
+    }
+    // witch skip
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    // seer peek
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    // N1 last-words (day===0, villager gets last-words)
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
+    expect(s.phase).toBe('sheriff-claim');
+
+    // Elect a single sheriff: first alive player runs, all others decline.
+    const sheriffPlayer = s.alive[0]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, {
+        phase: 'sheriff-claim',
+        kind: 'sheriff-claim',
+        actorTwinId: actor,
+        data: { run: actor === sheriffPlayer },
+      });
+    }
+    expect(s.sheriff).toBe(sheriffPlayer);
+    expect(s.phase).toBe('day-direction');
+
+    // day-direction: sheriff picks direction
+    s = applyTurn(s, { phase: 'day-direction', kind: 'day-direction', actorTwinId: sheriffPlayer, data: { direction: 'right' } });
+    expect(s.phase).toBe('day-speak');
+
+    // day-speak: everyone speaks
+    while (s.phase === 'day-speak') {
+      const actor = planNextTurn(s)!.actorTwinId!;
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: actor, text: 'meh' });
+    }
+    expect(s.phase).toBe('sheriff-pull-vote');
+    s = applyTurn(s, { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: sheriffPlayer });
+    expect(s.phase).toBe('day-vote');
+
+    // day-vote: lynch a wolf (wolves[0]) — sheriff stays alive
+    const wolfToLynch = wolves[0]!;
+    for (const v of s.alive) {
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: v, data: { target: wolfToLynch } });
+    }
+    // last-words for the lynched wolf (no badge, they're not sheriff)
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
+    // Now it's night-2 (guard → werewolf → witch → seer → resolve)
+    expect(s.day).toBe(1);
+    s = advanceToWerewolf(s);
+
+    // N2: wolves kill the sheriff
+    const remainingWolves = byRole(s, 'werewolf').filter((w) => s.alive.includes(w));
+    expect(remainingWolves.length).toBeGreaterThan(0);
+    for (const w of remainingWolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: sheriffPlayer } });
+    }
+    // witch skip
+    const witch2 = byRole(s, 'witch').filter((w) => s.alive.includes(w))[0];
+    if (witch2) {
+      s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch2, data: {} });
+    }
+    // seer peek (if alive)
+    const seer2 = byRole(s, 'seer').filter((id) => s.alive.includes(id))[0];
+    if (seer2) {
+      const peekTarget = s.alive.filter((id) => id !== seer2)[0]!;
+      s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer2, data: { target: peekTarget } });
+    }
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+
+    // Night-2 deaths have NO last-words (Task 2.1). Should land on sheriff-night-badge.
+    expect(s.lastWordsQueue).not.toContain(sheriffPlayer);
+
+    const heir = s.alive.filter((id) => id !== sheriffPlayer)[0]!;
+    return { state: s, sheriff: sheriffPlayer, heir };
+  }
+
+  it('night-killed sheriff lands on sheriff-night-badge phase (not last-words, not dangling)', () => {
+    const { state, sheriff } = gameWithSheriffKilledNight2();
+    expect(state.phase).toBe('sheriff-night-badge');
+    // Sheriff is dead
+    expect(state.alive).not.toContain(sheriff);
+    // planNextTurn returns a turn for the dead sheriff
+    const plan = planNextTurn(state)!;
+    expect(plan.phase).toBe('sheriff-night-badge');
+    expect(plan.actorTwinId).toBe(sheriff);
+    // No last-words queued for the sheriff
+    expect(state.lastWordsQueue).not.toContain(sheriff);
+  });
+
+  it('night-killed sheriff transfers badge — new sheriff gets 1.5x, dead id cleared', () => {
+    const { state, sheriff, heir } = gameWithSheriffKilledNight2();
+    expect(state.phase).toBe('sheriff-night-badge');
+
+    const after = applyTurn(state, {
+      phase: 'sheriff-night-badge',
+      kind: 'sheriff-night-badge',
+      actorTwinId: sheriff,
+      data: { badge_decision: `pass:${heir}` },
+    });
+
+    expect(after.sheriff).toBe(heir);
+    expect(after.sheriffHas1_5x).toBe(true);
+    // Dead sheriff id is NOT in state.sheriff
+    expect(after.sheriff).not.toBe(sheriff);
+    // pendingSheriffBadge cleared
+    expect((after as unknown as { pendingSheriffBadge?: unknown }).pendingSheriffBadge).toBeUndefined();
+    // Phase advanced past sheriff-night-badge
+    expect(after.phase).not.toBe('sheriff-night-badge');
+    // Heir is alive and now sheriff
+    expect(after.alive).toContain(heir);
+  });
+
+  it('night-killed sheriff destroys badge — no sheriff after, sheriffHas1_5x false', () => {
+    const { state, sheriff } = gameWithSheriffKilledNight2();
+
+    const after = applyTurn(state, {
+      phase: 'sheriff-night-badge',
+      kind: 'sheriff-night-badge',
+      actorTwinId: sheriff,
+      data: { badge_decision: 'destroy' },
+    });
+
+    expect(after.sheriff).toBeUndefined();
+    expect(after.sheriffHas1_5x).toBe(false);
+    expect((after as unknown as { pendingSheriffBadge?: unknown }).pendingSheriffBadge).toBeUndefined();
+    expect(after.phase).not.toBe('sheriff-night-badge');
+  });
+
+  it('default (no badge_decision) = destroy', () => {
+    const { state, sheriff } = gameWithSheriffKilledNight2();
+
+    const after = applyTurn(state, {
+      phase: 'sheriff-night-badge',
+      kind: 'sheriff-night-badge',
+      actorTwinId: sheriff,
+      data: {},
+    });
+
+    expect(after.sheriff).toBeUndefined();
+    expect(after.sheriffHas1_5x).toBe(false);
+  });
+
+  it('invalid target (dead player) in pass → defaults to destroy', () => {
+    const { state, sheriff } = gameWithSheriffKilledNight2();
+    // The sheriff itself is dead — passing to a dead player should destroy
+    const after = applyTurn(state, {
+      phase: 'sheriff-night-badge',
+      kind: 'sheriff-night-badge',
+      actorTwinId: sheriff,
+      data: { badge_decision: `pass:${sheriff}` }, // dead player → invalid
+    });
+
+    expect(after.sheriff).toBeUndefined();
+    expect(after.sheriffHas1_5x).toBe(false);
+  });
+
+  it('state.sheriff never points at a dead id after the badge phase', () => {
+    const { state, sheriff } = gameWithSheriffKilledNight2();
+    // Sheriff is already dead in state; if sheriff-night-badge not implemented,
+    // state.sheriff would still point at the dead id. Verify the final state
+    // never has sheriff === dead id.
+    const after = applyTurn(state, {
+      phase: 'sheriff-night-badge',
+      kind: 'sheriff-night-badge',
+      actorTwinId: sheriff,
+      data: {},
+    });
+    if (after.sheriff) {
+      expect(after.alive).toContain(after.sheriff);
+    }
+  });
+});

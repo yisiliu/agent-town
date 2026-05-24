@@ -53,6 +53,7 @@ function clone(s: WerewolfState): WerewolfState {
     pendingHunterShot: s.pendingHunterShot,
     phaseAfterHunterShot: s.phaseAfterHunterShot,
     sheriff: s.sheriff,
+    pendingSheriffBadge: s.pendingSheriffBadge,
     sheriffHas1_5x: s.sheriffHas1_5x,
     sheriffCandidates: s.sheriffCandidates.slice(),
     sheriffClaimCursor: s.sheriffClaimCursor,
@@ -247,6 +248,10 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.phase = 'last-words';
     return next;
   }
+  if (next.pendingSheriffBadge) {
+    next.phase = 'sheriff-night-badge';
+    return next;
+  }
   if (fromNightResolve) {
     // Day-1 morning: run sheriff election before day-direction.
     if (!next.sheriffElectionDone) {
@@ -271,6 +276,7 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.poisonedThisNight = [];
     next.guardTargetThisNight = undefined;
     next.lastWordsFromNightResolve = undefined;
+    next.pendingSheriffBadge = undefined;
     next.speechOrder = undefined;
     next.speechCursor = undefined;
     next.speechDirection = undefined;
@@ -441,6 +447,14 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     return { phase: 'last-words', kind: 'last-words', actorTwinId: speaker, visibility: 'public' };
   }
 
+  if (s.phase === 'sheriff-night-badge') {
+    const dead = s.pendingSheriffBadge;
+    if (!dead) {
+      return { phase: 'sheriff-night-badge', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff badge pending.' };
+    }
+    return { phase: 'sheriff-night-badge', kind: 'sheriff-night-badge', actorTwinId: dead, visibility: 'public' };
+  }
+
   if (s.phase === 'day-speak') {
     const order = s.speechOrder ?? s.alive;
     const cursor = s.speechCursor ?? 0;
@@ -570,6 +584,10 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
   next.lastGuardTarget = next.guardTargetThisNight;
   next.guardTargetThisNight = undefined;
   next.nightDeaths = uniqDeaths;
+  // Night-killed sheriff: queue a dusk badge decision (NO last-words). Spec §5.
+  if (next.sheriff && !next.alive.includes(next.sheriff)) {
+    next.pendingSheriffBadge = next.sheriff;
+  }
   return transitionAfterResolve(next, true);
 }
 
@@ -671,6 +689,7 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.poisonedThisNight = [];
     next.guardTargetThisNight = undefined;
     next.lastWordsFromNightResolve = undefined;
+    next.pendingSheriffBadge = undefined;
     next.speechOrder = undefined;
     next.speechCursor = undefined;
     next.speechDirection = undefined;
@@ -865,6 +884,39 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
       next.lastWordsFromNightResolve = undefined;
     }
     return transitionAfterResolve(next, fromNight);
+  }
+
+  // ---- sheriff-night-badge ----
+  // Night-dead sheriff makes a one-shot dusk decision: transfer badge or destroy.
+  // No last-words —遗言 and 警徽移交 are decoupled by spec §5.
+  if (s.phase === 'sheriff-night-badge' && (t.kind === 'sheriff-night-badge' || t.kind === 'system' || t.kind === 'abstain')) {
+    const next = clone(s);
+    const dead = next.pendingSheriffBadge;
+    const data = t.data as { badge_decision?: string } | undefined;
+    const dec = data?.badge_decision;
+    if (dec && dec.startsWith('pass:')) {
+      const passToId = dec.slice('pass:'.length).trim();
+      const target = passToId as unknown as Id<'twins'>;
+      if (next.alive.includes(target)) {
+        next.sheriff = target;
+        next.sheriffHas1_5x = true;
+        next.publicLog.push(`Day ${next.day + 1}: ${dead} (夜死警长) passed the badge to ${target}.`);
+      } else {
+        // Invalid target → destroy.
+        next.sheriff = undefined;
+        next.sheriffHas1_5x = false;
+        next.publicLog.push(`Day ${next.day + 1}: ${dead} (夜死警长) destroyed the badge (invalid target).`);
+      }
+    } else {
+      // Explicit destroy or default (no decision).
+      next.sheriff = undefined;
+      next.sheriffHas1_5x = false;
+      next.publicLog.push(`Day ${next.day + 1}: ${dead} (夜死警长) destroyed the badge.`);
+    }
+    next.pendingSheriffBadge = undefined;
+    // Continue to morning: sheriff election already done (night-kill only happens
+    // on day≥1), so transitionAfterResolve(next, true) lands on day-direction.
+    return transitionAfterResolve(next, true);
   }
 
   // ---- sheriff-claim ----
