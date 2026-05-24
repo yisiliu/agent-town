@@ -4,7 +4,7 @@ import type { Id } from '../../../_generated/dataModel';
 //   3 werewolves + 1 seer + 1 witch + 1 hunter + 3 villagers.
 // Per-research recommendations: no guard, no sheriff in v1; last-words on
 // lynch + wolf-kill; hunter shot blocked when poisoned by witch.
-export type WerewolfRole = 'werewolf' | 'seer' | 'witch' | 'hunter' | 'villager';
+export type WerewolfRole = 'werewolf' | 'seer' | 'witch' | 'hunter' | 'guard' | 'villager';
 
 export type WerewolfPhase =
   // Wolves vote on a target privately (each wolf picks; majority wins;

@@ -18,6 +18,7 @@ import '../ours/interactions/werewolf'; // trigger self-registration
 const P = (n: number) => `twin_${n}` as unknown as Id<'twins'>;
 const five = [P(0), P(1), P(2), P(3), P(4)];
 const nine = [P(0), P(1), P(2), P(3), P(4), P(5), P(6), P(7), P(8)];
+const twelve = [P(0), P(1), P(2), P(3), P(4), P(5), P(6), P(7), P(8), P(9), P(10), P(11)];
 
 function byRole(s: WerewolfState, role: string): Id<'twins'>[] {
   return Object.entries(s.roles)
@@ -87,6 +88,27 @@ describe('werewolf rules — 9p canonical config (3W+S+W+H+3V)', () => {
       expect(m!.courage).toBeGreaterThanOrEqual(1);
       expect(m!.courage).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe('werewolf rules — board tables (9p no-guard, 12p 预女猎守)', () => {
+  it('9p has NO guard (3W / S·W·H / 3V)', () => {
+    const s = initialState(nine, 42);
+    expect(byRole(s, 'werewolf').length).toBe(3);
+    expect(byRole(s, 'guard').length).toBe(0);
+    expect(byRole(s, 'seer').length).toBe(1);
+    expect(byRole(s, 'witch').length).toBe(1);
+    expect(byRole(s, 'hunter').length).toBe(1);
+    expect(byRole(s, 'villager').length).toBe(3);
+  });
+  it('12p is 4W / S·W·H·G / 4V', () => {
+    const s = initialState(twelve, 7);
+    expect(byRole(s, 'werewolf').length).toBe(4);
+    expect(byRole(s, 'seer').length).toBe(1);
+    expect(byRole(s, 'witch').length).toBe(1);
+    expect(byRole(s, 'hunter').length).toBe(1);
+    expect(byRole(s, 'guard').length).toBe(1);
+    expect(byRole(s, 'villager').length).toBe(4);
   });
 });
 

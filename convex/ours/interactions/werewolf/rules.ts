@@ -90,6 +90,20 @@ function assignRoles(
     return roles;
   }
 
+  if (n === 12) {
+    // 4 wolves, 1 seer, 1 witch, 1 hunter, 1 guard, 4 villagers (预女猎守).
+    roles[asKey(shuffled[0]!)] = 'werewolf';
+    roles[asKey(shuffled[1]!)] = 'werewolf';
+    roles[asKey(shuffled[2]!)] = 'werewolf';
+    roles[asKey(shuffled[3]!)] = 'werewolf';
+    roles[asKey(shuffled[4]!)] = 'seer';
+    roles[asKey(shuffled[5]!)] = 'witch';
+    roles[asKey(shuffled[6]!)] = 'hunter';
+    roles[asKey(shuffled[7]!)] = 'guard';
+    for (let i = 8; i < n; i++) roles[asKey(shuffled[i]!)] = 'villager';
+    return roles;
+  }
+
   // Fallback for smaller games (≥4): scale werewolves to floor(n/4), keep
   // seer + witch when n≥6, hunter when n≥7, rest villagers.
   const wolves = Math.max(1, Math.floor(n / 4));

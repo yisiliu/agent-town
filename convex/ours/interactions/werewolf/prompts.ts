@@ -129,6 +129,10 @@ const ROLE_BRIEFINGS: Record<WerewolfRole, string> = {
     'You are the HUNTER (猎人). No night action. When you die — by lynch or wolf attack — you may shoot one player down with you. EXCEPTION: poisoned by witch → no shot.',
     'Use the threat of your shot: claim Hunter under pressure to deter wolves from killing you and to deter the village from lynching you. But once you claim, you commit — wolves may try to bait the witch into poisoning you.',
   ].join('\n'),
+  guard: [
+    'You are the GUARD (守卫). Each night you may protect one player (including yourself) to block a wolf kill. You can protect the same player each night or switch targets.',
+    'Protect high-value players: the Seer (if you identify them) or the Witch. Avoid creating predictable patterns — wolves will recognize and adjust. If you block a kill, stay silent to avoid revealing your role.',
+  ].join('\n'),
   villager: [
     'You are a VILLAGER (平民). No special powers. Your job: identify wolves through speech inconsistencies and vote them out before they outnumber you.',
     'Trust the Seer with 2+ checks. Cross-check the Witch\'s save/poison story. A villager can fake-claim Seer to divert a wolf kill — but it\'s risky and confuses the real Seer.',
