@@ -1823,8 +1823,11 @@ describe('werewolf rules — night-dead sheriff badge (黄昏决策, no last-wor
     expect((after as unknown as { pendingSheriffBadge?: unknown }).pendingSheriffBadge).toBeUndefined();
     // Phase advanced past sheriff-night-badge
     expect(after.phase).not.toBe('sheriff-night-badge');
+    // After badge transfer the game proceeds to day-direction (not day-speak directly)
+    expect(after.phase).toBe('day-direction');
     // Heir is alive and now sheriff
     expect(after.alive).toContain(heir);
+    expect(after.sheriff).toBe(heir);
   });
 
   it('night-killed sheriff destroys badge — no sheriff after, sheriffHas1_5x false', () => {
@@ -2093,5 +2096,88 @@ describe('werewolf rules — 白天平票 PK', () => {
     // Confirm sheriff 1.5x was suppressed: if it had applied, pkA would have
     // had a weighted vote and could have redirected, but since pkA didn't vote,
     // all votes went to pkB → clear lynch of pkB.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12p full day-1 cycle with a live guard (smoke test)
+// Exercises the day-side composition path for boards that include a guard.
+// ---------------------------------------------------------------------------
+describe('werewolf rules — 12p full day-1 cycle with live guard', () => {
+  it('drives 12p from initialState through night-1, last-words, sheriff-election, day-direction, day-speak — guard is alive and in speechOrder', () => {
+    // --- Night 1 ---
+    let s = initialState(twelve, 7);
+    expect(s.phase).toBe('night-guard');
+
+    const guard = byRole(s, 'guard')[0]!;
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villagers = byRole(s, 'villager');
+    const n1Kill = villagers[0]!; // kill a villager so guard survives
+
+    // guard protects a non-wolf (空守 — someone other than kill target)
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: guard } });
+
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: n1Kill } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+
+    // --- First-night last-words ---
+    while (s.phase === 'last-words') {
+      s = applyTurn(s, {
+        phase: 'last-words',
+        kind: 'last-words',
+        actorTwinId: s.lastWordsQueue[0],
+        text: 'bye',
+      });
+    }
+    expect(s.phase).toBe('sheriff-claim');
+
+    // Guard is still alive after night-1
+    expect(s.alive).toContain(guard);
+
+    // --- Sheriff election: elect first alive player as sole candidate ---
+    const sheriffPlayer = s.alive[0]!;
+    while (s.phase === 'sheriff-claim') {
+      const actor = s.alive[s.sheriffClaimCursor]!;
+      s = applyTurn(s, {
+        phase: 'sheriff-claim',
+        kind: 'sheriff-claim',
+        actorTwinId: actor,
+        data: { run: actor === sheriffPlayer },
+      });
+    }
+    expect(s.phase).toBe('day-direction');
+    expect(s.sheriff).toBe(sheriffPlayer);
+
+    // --- day-direction: sheriff sets speech direction ---
+    s = applyTurn(s, {
+      phase: 'day-direction',
+      kind: 'day-direction',
+      actorTwinId: sheriffPlayer,
+      data: { direction: 'right' },
+    });
+    expect(s.phase).toBe('day-speak');
+
+    // --- Verify guard is alive and present in speechOrder ---
+    expect(s.alive).toContain(guard);
+    const order = s.speechOrder ?? s.alive;
+    expect(order).toContain(guard);
+
+    // --- Drive at least the first day-speak turn ---
+    const firstSpeaker = order[s.speechCursor ?? 0]!;
+    s = applyTurn(s, {
+      phase: 'day-speak',
+      kind: 'speak',
+      actorTwinId: firstSpeaker,
+      text: 'hello',
+    });
+    // Still in day-speak (more players to speak) and guard still alive
+    expect(s.phase).toBe('day-speak');
+    expect(s.alive).toContain(guard);
   });
 });
