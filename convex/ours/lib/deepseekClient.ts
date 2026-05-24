@@ -78,6 +78,23 @@ export async function callDeepseekAPI(
   return lastResult ?? { text: '', usage: { input_tokens: 0, output_tokens: 0 } };
 }
 
+// Account balance / billing endpoint — not an LLM call, but kept here so
+// all access to api.deepseek.com originates from this one client (spec
+// §5.1 chokepoint). Used by the one-off spend audit.
+export async function fetchDeepseekBalance(): Promise<unknown> {
+  const res = await fetch('https://api.deepseek.com/user/balance', {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${apiKey()}`,
+      'content-type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`deepseek balance ${res.status}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 interface DeepseekResponse {
   choices?: Array<{ message?: { content?: string } }>;
   usage?: {

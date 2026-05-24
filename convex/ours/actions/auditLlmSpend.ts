@@ -1,5 +1,6 @@
 import { internalAction, internalQuery } from '../../_generated/server';
 import { internal } from '../../_generated/api';
+import { fetchDeepseekBalance } from '../lib/deepseekClient';
 
 // One-off audit: aggregate LLM usage by tier + callType from the
 // idempotency cache, sum frontier spend from agentDailySpend, hit
@@ -72,32 +73,15 @@ export const aggregate = internalQuery({
 export default internalAction({
   args: {},
   handler: async (ctx): Promise<any> => {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      throw new Error('DEEPSEEK_API_KEY not set in Convex env');
-    }
-
     const internal_aggregate = (await ctx.runQuery(
       internal.ours.actions.auditLlmSpend.aggregate as any,
       {},
     )) as any;
 
-    // Hit DeepSeek /user/balance
     let balance: any = null;
     let balanceError: string | null = null;
     try {
-      const resp = await fetch('https://api.deepseek.com/user/balance', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!resp.ok) {
-        balanceError = `${resp.status} ${resp.statusText}`;
-      } else {
-        balance = await resp.json();
-      }
+      balance = await fetchDeepseekBalance();
     } catch (e) {
       balanceError = (e as Error).message;
     }
