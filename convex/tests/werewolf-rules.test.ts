@@ -1018,7 +1018,7 @@ describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
     const wolf = byRole(s, 'werewolf')[0]!;
     s = {
       ...s,
-      seerKnowledge: [{ target: wolf, role: 'werewolf', day: 0 }],
+      seerKnowledge: [{ target: wolf, alignment: 'werewolf' as const, day: 0 }],
     };
     const p = buildUserPrompt({
       state: s,
@@ -1028,8 +1028,32 @@ describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
       visibleTurns: [],
       aliveNames: { [wolf as unknown as string]: 'AliceWolf' },
     });
-    expect(p).toContain('AliceWolf = werewolf');
+    expect(p).toContain('AliceWolf = 查杀(狼)');
     expect(p).toContain('只能引用以上事实');
+  });
+
+  it('seer peek stores alignment only (witch → good, never role)', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    for (const w of wolves)
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: byRole(s, 'villager')[0] } });
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: witch } });
+    expect(s.seerKnowledge[0]!.alignment).toBe('good');
+    expect((s.seerKnowledge[0] as Record<string, unknown>).role).toBeUndefined();
+    const p = buildUserPrompt({
+      state: s,
+      actorTwinId: seer,
+      phase: 'last-words',
+      kind: 'last-words',
+      visibleTurns: [],
+      aliveNames: { [witch as unknown as string]: 'WitchName' },
+    });
+    expect(p).toContain('WitchName = 金水(好人)');
+    // The peeked role must not appear next to the target name
+    expect(p).not.toMatch(/WitchName\s*=\s*witch/);
   });
 
   it('witch sees actual potion state', () => {

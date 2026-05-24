@@ -798,7 +798,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
       const target = (t.data as { target?: Id<'twins'> })?.target;
       const role = target ? next.roles[asKey(target)] : undefined;
       if (target && role) {
-        next.seerKnowledge.push({ target, role, day: next.day });
+        const alignment: 'werewolf' | 'good' = role === 'werewolf' ? 'werewolf' : 'good';
+        next.seerKnowledge.push({ target, alignment, day: next.day });
       }
     }
     next.phase = 'night-resolve';
