@@ -44,6 +44,7 @@ import type * as ours_actions_forceEndAllConversations from "../ours/actions/for
 import type * as ours_actions_interactionTakeTurn from "../ours/actions/interactionTakeTurn.js";
 import type * as ours_actions_llmRouter from "../ours/actions/llmRouter.js";
 import type * as ours_actions_piiScan from "../ours/actions/piiScan.js";
+import type * as ours_actions_playWerewolfE2E from "../ours/actions/playWerewolfE2E.js";
 import type * as ours_actions_probeMinimaxEmbedding from "../ours/actions/probeMinimaxEmbedding.js";
 import type * as ours_actions_promptInjectionScan from "../ours/actions/promptInjectionScan.js";
 import type * as ours_actions_refreshAllInWorld from "../ours/actions/refreshAllInWorld.js";
@@ -249,6 +250,7 @@ declare const fullApi: ApiFromModules<{
   "ours/actions/interactionTakeTurn": typeof ours_actions_interactionTakeTurn;
   "ours/actions/llmRouter": typeof ours_actions_llmRouter;
   "ours/actions/piiScan": typeof ours_actions_piiScan;
+  "ours/actions/playWerewolfE2E": typeof ours_actions_playWerewolfE2E;
   "ours/actions/probeMinimaxEmbedding": typeof ours_actions_probeMinimaxEmbedding;
   "ours/actions/promptInjectionScan": typeof ours_actions_promptInjectionScan;
   "ours/actions/refreshAllInWorld": typeof ours_actions_refreshAllInWorld;
