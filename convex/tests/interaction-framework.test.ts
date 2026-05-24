@@ -47,7 +47,7 @@ describe('startInteraction', () => {
     expect(row).not.toBeNull();
     expect(row!.type).toBe('werewolf');
     expect(row!.status).toBe('in_progress');
-    expect(row!.phase).toBe('night-werewolf');
+    expect(row!.phase).toBe('night-guard');
     expect(row!.participants).toHaveLength(5);
     expect(row!.turnIndex).toBe(0);
     expect(row!.seed).toBe(42);
@@ -91,9 +91,23 @@ describe('appendInteractionTurn', () => {
     const werewolf = Object.entries(state.roles).find(([, r]) => r === 'werewolf')![0] as unknown as Id<'twins'>;
     const target = state.alive.find((i) => i !== werewolf)!;
 
-    const res = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+    // 5-player games have no guard, so the initial 'night-guard' phase emits a
+    // system skip turn. Apply it first to advance to 'night-werewolf'.
+    const skip = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
       interactionId: id,
       expectedTurnIndex: 0,
+      phase: 'night-guard',
+      kind: 'system',
+      actorTwinId: undefined,
+      text: 'No guard to protect tonight.',
+      data: undefined,
+      visibility: 'public',
+    });
+    expect(skip.applied).toBe(true);
+
+    const res = await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+      interactionId: id,
+      expectedTurnIndex: 1,
       phase: 'night-werewolf',
       kind: 'wolf-kill-bid',
       actorTwinId: werewolf,
@@ -105,7 +119,7 @@ describe('appendInteractionTurn', () => {
     expect(res.ended).toBe(false);
 
     const after = await t.run((ctx) => ctx.db.get(id));
-    expect(after!.turnIndex).toBe(1);
+    expect(after!.turnIndex).toBe(2);
     expect(after!.phase).toBe('night-seer');
   });
 
