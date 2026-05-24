@@ -166,7 +166,7 @@ export interface WerewolfState {
   publicLog: string[];
   // Per-player private notes are surfaced through visibility-restricted
   // turns rather than state — keeps the state shape stable.
-  seerKnowledge: Array<{ target: Id<'twins'>; role: WerewolfRole; day: number }>;
+  seerKnowledge: Array<{ target: Id<'twins'>; alignment: 'werewolf' | 'good'; day: number }>;
 
   day: number;
   winner?: 'werewolves' | 'villagers';

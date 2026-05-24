@@ -170,7 +170,7 @@ function groundingFacts(
       const checks = state.seerKnowledge
         .map(
           (k) =>
-            `  · Day ${k.day}: ${nameMap[k.target as unknown as string] ?? k.target} = ${k.role}`,
+            `  · Day ${k.day}: ${nameMap[k.target as unknown as string] ?? k.target} = ${k.alignment === 'werewolf' ? '查杀(狼)' : '金水(好人)'}`,
         )
         .join('\n');
       lines.push(
@@ -364,7 +364,7 @@ function focusHints(
     const checks = state.seerKnowledge
       .map(
         (k) =>
-          `  · Day ${k.day}: ${nameMap[k.target as unknown as string] ?? k.target} = ${k.role}`,
+          `  · Day ${k.day}: ${nameMap[k.target as unknown as string] ?? k.target} = ${k.alignment === 'werewolf' ? '查杀(狼)' : '金水(好人)'}`,
       )
       .join('\n');
     hints.push(`你的查验记录（仅你自己看到）：\n${checks}`);
