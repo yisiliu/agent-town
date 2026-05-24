@@ -182,7 +182,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
     expect(plan!.visibility).toEqual([plan!.actorTwinId]);
   });
 
-  it('collapses 3 wolf votes (majority wins), advances to night-seer', () => {
+  it('collapses 3 wolf votes (majority wins), advances to night-witch', () => {
     let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
@@ -190,7 +190,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: seer } });
     }
-    expect(s.phase).toBe('night-seer');
+    expect(s.phase).toBe('night-witch');
     expect(s.pendingWolfKill).toBe(seer);
     expect(s.wolfVotes).toEqual({});
   });
@@ -229,10 +229,10 @@ describe('werewolf rules — witch potions', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: seer } });
     }
+    // witch saves (witch acts before seer now)
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
     // seer peek (anyone — doesn't matter for this test)
     s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
-    // witch saves
-    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
     expect(s.witchSavePotion).toBe(false);
     expect(s.witchSaveUsedTonight).toBe(true);
     // resolve
@@ -253,8 +253,8 @@ describe('werewolf rules — witch potions', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: seer } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { poison_target: villager } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     expect(s.witchPoisonPotion).toBe(false);
     expect(s.pendingPoisonTarget).toBe(villager);
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
@@ -271,9 +271,9 @@ describe('werewolf rules — witch potions', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: seer } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     // Witch tries both — neither should apply
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true, poison_target: villager } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     expect(s.witchSaveUsedTonight).toBe(false);
     expect(s.pendingPoisonTarget).toBeUndefined();
     expect(s.witchSavePotion).toBe(true); // still available
@@ -289,12 +289,12 @@ describe('werewolf rules — hunter', () => {
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
 
-    // Skip through night-werewolf-bid (kill seer), seer peek, witch skip
+    // Skip through night-werewolf-bid (kill seer), witch skip, seer peek
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: seer } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     s = skipSheriffElection(s);
     expect(s.phase).toBe('day-speak');
@@ -335,8 +335,8 @@ describe('werewolf rules — hunter', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { poison_target: hunter } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.alive).not.toContain(hunter); // poisoned dead
     expect(s.pendingHunterShot).toBeUndefined(); // blocked!
@@ -359,8 +359,8 @@ describe('werewolf rules — last-words', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villagerA } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     s = skipSheriffElection(s);
 
@@ -385,6 +385,57 @@ describe('werewolf rules — last-words', () => {
   });
 });
 
+describe('werewolf rules — Task 1.5: night order guard→wolf→witch→seer→resolve', () => {
+  it('night order is guard→wolf→witch→seer→resolve', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    expect(s.phase).toBe('night-witch');   // witch BEFORE seer now
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    expect(s.phase).toBe('night-seer');
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    expect(s.phase).toBe('night-resolve');
+  });
+
+  it('no-witch skip: wolves→seer→resolve', () => {
+    // Use 9p board but kill the witch before starting
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    // Remove witch from alive list to simulate dead witch
+    s = { ...s, alive: s.alive.filter((id) => id !== witch) };
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    expect(s.phase).toBe('night-seer');   // no witch → skip to seer
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    expect(s.phase).toBe('night-resolve');
+  });
+
+  it('no-seer skip: wolves→witch→resolve', () => {
+    let s = advanceToWerewolf(initialState(nine, 42));
+    const wolves = byRole(s, 'werewolf');
+    const seer = byRole(s, 'seer')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    // Remove seer from alive list to simulate dead seer
+    s = { ...s, alive: s.alive.filter((id) => id !== seer) };
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    expect(s.phase).toBe('night-witch');   // seer dead → witch still happens
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    expect(s.phase).toBe('night-resolve');  // no seer → straight to resolve
+  });
+});
+
 describe('werewolf rules — sheriff election', () => {
   // Helper: run a 9p night through, return state at the start of sheriff-claim.
   function nightOneToSheriffClaim(): WerewolfState {
@@ -396,8 +447,8 @@ describe('werewolf rules — sheriff election', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.phase).toBe('sheriff-claim');
     return s;
@@ -570,8 +621,8 @@ describe('werewolf rules — sheriff PK round', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     return s;
   }
@@ -685,8 +736,8 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     expect(s.phase).toBe('sheriff-claim');
 
@@ -709,8 +760,8 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     s = skipSheriffElection(s);
     // Drive day-speak
@@ -735,8 +786,8 @@ describe('werewolf rules — witch self-save N1 only', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: witch } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     expect(s.witchSavePotion).toBe(false);
     expect(s.witchSaveUsedTonight).toBe(true);
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
@@ -753,8 +804,8 @@ describe('werewolf rules — witch self-save N1 only', () => {
     for (const w of wolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
     s = skipSheriffElection(s);
     // Day-1 speak + vote (everyone votes wolf0 to keep night-2 alive simple)
@@ -776,9 +827,9 @@ describe('werewolf rules — witch self-save N1 only', () => {
     for (const w of aliveWolves) {
       s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: witch } });
     }
-    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[1]! } });
     // Witch tries to self-save on Night 2 — should be blocked.
     s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[1]! } });
     expect(s.witchSavePotion).toBe(true); // potion NOT consumed
     expect(s.witchSaveUsedTonight).toBe(false); // save NOT applied
     s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });

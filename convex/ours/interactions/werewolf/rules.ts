@@ -656,9 +656,9 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     if (allVoted) {
       next.pendingWolfKill = collapseWolfVotes(next);
       next.wolfVotes = {};
-      // Pick next sub-phase. Seer → Witch → Resolve.
-      if (aliveByRole(next, 'seer').length > 0) next.phase = 'night-seer';
-      else if (aliveByRole(next, 'witch').length > 0) next.phase = 'night-witch';
+      // Pick next sub-phase. Witch → Seer → Resolve (standard 京城大师赛 order).
+      if (aliveByRole(next, 'witch').length > 0) next.phase = 'night-witch';
+      else if (aliveByRole(next, 'seer').length > 0) next.phase = 'night-seer';
       else next.phase = 'night-resolve';
     }
     return next;
@@ -674,7 +674,7 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         next.seerKnowledge.push({ target, role, day: next.day });
       }
     }
-    next.phase = aliveByRole(next, 'witch').length > 0 ? 'night-witch' : 'night-resolve';
+    next.phase = 'night-resolve';
     return next;
   }
 
@@ -710,7 +710,7 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
         }
       }
     }
-    next.phase = 'night-resolve';
+    next.phase = aliveByRole(next, 'seer').length > 0 ? 'night-seer' : 'night-resolve';
     return next;
   }
 
