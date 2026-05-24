@@ -88,6 +88,7 @@ import type * as ours_lib_session from "../ours/lib/session.js";
 import type * as ours_lib_sessionWindowCore from "../ours/lib/sessionWindowCore.js";
 import type * as ours_lib_spendTracking from "../ours/lib/spendTracking.js";
 import type * as ours_lib_togetherClient from "../ours/lib/togetherClient.js";
+import type * as ours_lib_townChatModel from "../ours/lib/townChatModel.js";
 import type * as ours_lib_uploadFlowCore from "../ours/lib/uploadFlowCore.js";
 import type * as ours_lib_uploadPayload from "../ours/lib/uploadPayload.js";
 import type * as ours_lib_uploadResultsStore from "../ours/lib/uploadResultsStore.js";
@@ -117,6 +118,7 @@ import type * as ours_mutations_leaveTwinsFromTown from "../ours/mutations/leave
 import type * as ours_mutations_markSeededNpcsSynthetic from "../ours/mutations/markSeededNpcsSynthetic.js";
 import type * as ours_mutations_promoteTwinToAgent from "../ours/mutations/promoteTwinToAgent.js";
 import type * as ours_mutations_queueCreateAgentInline from "../ours/mutations/queueCreateAgentInline.js";
+import type * as ours_mutations_recordCacheStats from "../ours/mutations/recordCacheStats.js";
 import type * as ours_mutations_recordLlmCall from "../ours/mutations/recordLlmCall.js";
 import type * as ours_mutations_renameTwin from "../ours/mutations/renameTwin.js";
 import type * as ours_mutations_resumeWorld from "../ours/mutations/resumeWorld.js";
@@ -130,6 +132,7 @@ import type * as ours_queries_auditCardIntros from "../ours/queries/auditCardInt
 import type * as ours_queries_conversationActivity from "../ours/queries/conversationActivity.js";
 import type * as ours_queries_debugPlayerLookup from "../ours/queries/debugPlayerLookup.js";
 import type * as ours_queries_defaultWorldStatus from "../ours/queries/defaultWorldStatus.js";
+import type * as ours_queries_dumpAgentIdentity from "../ours/queries/dumpAgentIdentity.js";
 import type * as ours_queries_dumpFullCard from "../ours/queries/dumpFullCard.js";
 import type * as ours_queries_dumpTwinHashes from "../ours/queries/dumpTwinHashes.js";
 import type * as ours_queries_engineState from "../ours/queries/engineState.js";
@@ -149,6 +152,7 @@ import type * as ours_queries_listActiveInteractions from "../ours/queries/listA
 import type * as ours_queries_listAllPlayers from "../ours/queries/listAllPlayers.js";
 import type * as ours_queries_listInteractionTurns from "../ours/queries/listInteractionTurns.js";
 import type * as ours_queries_listTwinsByState from "../ours/queries/listTwinsByState.js";
+import type * as ours_queries_llmCacheReport from "../ours/queries/llmCacheReport.js";
 import type * as ours_queries_playerConversations from "../ours/queries/playerConversations.js";
 import type * as ours_queries_playerReflections from "../ours/queries/playerReflections.js";
 import type * as ours_queries_rejectedTwinDetail from "../ours/queries/rejectedTwinDetail.js";
@@ -174,6 +178,7 @@ import type * as ours_tables_instructors from "../ours/tables/instructors.js";
 import type * as ours_tables_interactionMemories from "../ours/tables/interactionMemories.js";
 import type * as ours_tables_interactionTurns from "../ours/tables/interactionTurns.js";
 import type * as ours_tables_interactions from "../ours/tables/interactions.js";
+import type * as ours_tables_llmCacheStats from "../ours/tables/llmCacheStats.js";
 import type * as ours_tables_llmCallIdempotency from "../ours/tables/llmCallIdempotency.js";
 import type * as ours_tables_noticeboard from "../ours/tables/noticeboard.js";
 import type * as ours_tables_objects from "../ours/tables/objects.js";
@@ -288,6 +293,7 @@ declare const fullApi: ApiFromModules<{
   "ours/lib/sessionWindowCore": typeof ours_lib_sessionWindowCore;
   "ours/lib/spendTracking": typeof ours_lib_spendTracking;
   "ours/lib/togetherClient": typeof ours_lib_togetherClient;
+  "ours/lib/townChatModel": typeof ours_lib_townChatModel;
   "ours/lib/uploadFlowCore": typeof ours_lib_uploadFlowCore;
   "ours/lib/uploadPayload": typeof ours_lib_uploadPayload;
   "ours/lib/uploadResultsStore": typeof ours_lib_uploadResultsStore;
@@ -317,6 +323,7 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/markSeededNpcsSynthetic": typeof ours_mutations_markSeededNpcsSynthetic;
   "ours/mutations/promoteTwinToAgent": typeof ours_mutations_promoteTwinToAgent;
   "ours/mutations/queueCreateAgentInline": typeof ours_mutations_queueCreateAgentInline;
+  "ours/mutations/recordCacheStats": typeof ours_mutations_recordCacheStats;
   "ours/mutations/recordLlmCall": typeof ours_mutations_recordLlmCall;
   "ours/mutations/renameTwin": typeof ours_mutations_renameTwin;
   "ours/mutations/resumeWorld": typeof ours_mutations_resumeWorld;
@@ -330,6 +337,7 @@ declare const fullApi: ApiFromModules<{
   "ours/queries/conversationActivity": typeof ours_queries_conversationActivity;
   "ours/queries/debugPlayerLookup": typeof ours_queries_debugPlayerLookup;
   "ours/queries/defaultWorldStatus": typeof ours_queries_defaultWorldStatus;
+  "ours/queries/dumpAgentIdentity": typeof ours_queries_dumpAgentIdentity;
   "ours/queries/dumpFullCard": typeof ours_queries_dumpFullCard;
   "ours/queries/dumpTwinHashes": typeof ours_queries_dumpTwinHashes;
   "ours/queries/engineState": typeof ours_queries_engineState;
@@ -349,6 +357,7 @@ declare const fullApi: ApiFromModules<{
   "ours/queries/listAllPlayers": typeof ours_queries_listAllPlayers;
   "ours/queries/listInteractionTurns": typeof ours_queries_listInteractionTurns;
   "ours/queries/listTwinsByState": typeof ours_queries_listTwinsByState;
+  "ours/queries/llmCacheReport": typeof ours_queries_llmCacheReport;
   "ours/queries/playerConversations": typeof ours_queries_playerConversations;
   "ours/queries/playerReflections": typeof ours_queries_playerReflections;
   "ours/queries/rejectedTwinDetail": typeof ours_queries_rejectedTwinDetail;
@@ -374,6 +383,7 @@ declare const fullApi: ApiFromModules<{
   "ours/tables/interactionMemories": typeof ours_tables_interactionMemories;
   "ours/tables/interactionTurns": typeof ours_tables_interactionTurns;
   "ours/tables/interactions": typeof ours_tables_interactions;
+  "ours/tables/llmCacheStats": typeof ours_tables_llmCacheStats;
   "ours/tables/llmCallIdempotency": typeof ours_tables_llmCallIdempotency;
   "ours/tables/noticeboard": typeof ours_tables_noticeboard;
   "ours/tables/objects": typeof ours_tables_objects;
