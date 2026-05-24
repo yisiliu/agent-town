@@ -8,11 +8,12 @@ import * as embeddingsCache from './embeddingsCache';
 import { GameId, conversationId, playerId } from '../aiTown/ids';
 import { NUM_MEMORIES_TO_SEARCH } from '../constants';
 import { callDeepseekAPI } from '../ours/lib/deepseekClient';
+import { townChatModel } from '../ours/lib/townChatModel';
 
 // Town conversations route to DeepSeek (not Together's Llama 3 8B) because
 // the 8B model can't reliably produce CJK tokens — it falls back to pinyin.
-// Embeddings still go through Together via util/llm.ts. Model is env-tunable:
-// drop to `deepseek-v4-flash` if Pro's reasoning-mode latency is too slow.
+// Embeddings still go through Together via util/llm.ts. Model is per-callType
+// via townChatModel(): defaults to V4 Flash, escalate to Pro in PRO_CALLTYPES.
 async function townChat(
   ctx: ActionCtx,
   args: { messages: LLMMessage[]; max_tokens: number; callType: string },
@@ -24,7 +25,7 @@ async function townChat(
     content: m.content ?? '',
   }));
   const result = await callDeepseekAPI({
-    model: process.env.TOWN_CHAT_MODEL ?? 'deepseek-v4-pro',
+    model: townChatModel(args.callType),
     maxTokens: args.max_tokens,
     system,
     messages: chat,

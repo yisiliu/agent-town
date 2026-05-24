@@ -5,6 +5,7 @@ import { internal } from '../_generated/api';
 import { LLMMessage, chatCompletion, fetchEmbedding } from '../util/llm';
 import { fetchMinimaxSingle } from '../ours/lib/minimaxEmbedding';
 import { callDeepseekAPI } from '../ours/lib/deepseekClient';
+import { townChatModel } from '../ours/lib/townChatModel';
 import { asyncMap } from '../util/asyncMap';
 
 // Mirror of embeddingsCache.fetchEmbeddings — gated on
@@ -32,7 +33,7 @@ async function townChat(
     content: m.content ?? '',
   }));
   const result = await callDeepseekAPI({
-    model: process.env.TOWN_CHAT_MODEL ?? 'deepseek-v4-pro',
+    model: townChatModel(args.callType),
     maxTokens: args.max_tokens,
     system,
     messages: chat,
