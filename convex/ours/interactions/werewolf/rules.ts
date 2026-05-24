@@ -460,18 +460,28 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
   const next = clone(s);
   const deaths: Id<'twins'>[] = [];
 
-  // Wolf kill (unless saved by witch).
-  if (next.pendingWolfKill && !next.witchSaveUsedTonight) {
-    deaths.push(next.pendingWolfKill);
+  // 3-input wolf-kill gate (spec §3):
+  //   guarded = guard protected the knife target this night
+  //   saved   = witch used save on the knife target this night
+  //   killed  = pendingWolfKill && !(guarded XOR saved)
+  // i.e. exactly ONE of {guard, save} protects → survives;
+  // BOTH (奶穿) or NEITHER → dies, attributed to 狼刀 (NOT poison) so hunter may shoot.
+  const knife = next.pendingWolfKill;
+  if (knife) {
+    const guarded = next.guardTargetThisNight === knife;
+    const saved = next.witchSaveUsedTonight; // save only ever targets the knife victim
+    const killed = !(guarded !== saved); // !(guarded XOR saved) → true when both or neither
+    if (killed) deaths.push(knife);
   }
-  // Witch poison.
+
+  // Witch poison — unconditional kill, pierces the guard shield, counts as 毒.
   if (next.pendingPoisonTarget) {
     deaths.push(next.pendingPoisonTarget);
     next.poisonedThisNight.push(next.pendingPoisonTarget);
   }
 
-  // Dedup (witch can't poison the same target wolves already killed — but
-  // if they coincidentally pick the same target, count once).
+  // Dedup (a 奶穿 victim who is ALSO poisoned should count once; poison wins
+  // the cause label because it was pushed into poisonedThisNight above).
   const seen = new Set<string>();
   const uniqDeaths: Id<'twins'>[] = [];
   for (const d of deaths) {
@@ -508,6 +518,9 @@ function applyNightResolve(s: WerewolfState): WerewolfState {
   next.pendingWolfKill = undefined;
   next.pendingPoisonTarget = undefined;
   next.witchSaveUsedTonight = false;
+  // Rotate guard memory: this night's protect becomes last night's; clear current.
+  next.lastGuardTarget = next.guardTargetThisNight;
+  next.guardTargetThisNight = undefined;
   next.nightDeaths = uniqDeaths;
   return transitionAfterResolve(next, true);
 }

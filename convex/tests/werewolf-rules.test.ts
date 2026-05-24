@@ -1185,6 +1185,137 @@ describe('werewolf prompts — parseTurnText', () => {
   });
 });
 
+describe('werewolf rules — night resolve 3-input gate (守×救×毒)', () => {
+  // Returns state at night-guard for a fresh 12p game.
+  function n1(): WerewolfState { return initialState(twelve, 7); }
+
+  it('守+救 both protect the SAME wolf target → 奶穿: target DIES, counts as 狼刀 (hunter could shoot)', () => {
+    let s = n1();
+    const wolves = byRole(s, 'werewolf');
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const hunter = byRole(s, 'hunter')[0]!;
+    // guard protects the hunter; wolves knife the hunter; witch saves the hunter.
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: hunter } });
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: hunter } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).not.toContain(hunter);              // 奶穿 → dies
+    expect(s.poisonedThisNight).not.toContain(hunter);  // NOT poisoned → hunter shot allowed
+    expect(s.pendingHunterShot).toBe(hunter);           // hunter can shoot (death = 狼刀)
+  });
+
+  it('守 only (no save) → target LIVES', () => {
+    let s = n1();
+    const wolves = byRole(s, 'werewolf');
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: villager } });
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).toContain(villager);
+  });
+
+  it('救 only (no guard) → target LIVES', () => {
+    let s = n1();
+    const wolves = byRole(s, 'werewolf');
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: {} }); // 空守
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { use_save: true } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).toContain(villager);
+  });
+
+  it('neither 守 nor 救 → target DIES (狼刀)', () => {
+    let s = n1();
+    const wolves = byRole(s, 'werewolf');
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: {} });
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).not.toContain(villager);
+  });
+
+  it('毒穿盾: guard protects + witch poisons the SAME target → DIES, counts as 毒 (hunter blocked)', () => {
+    let s = n1();
+    const wolves = byRole(s, 'werewolf');
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const hunter = byRole(s, 'hunter')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: hunter } });
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villager } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: { poison_target: hunter } });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.alive).not.toContain(hunter);              // poison pierces the shield
+    expect(s.poisonedThisNight).toContain(hunter);      // counted as poison
+    expect(s.pendingHunterShot).toBeUndefined();        // hunter CANNOT shoot
+  });
+
+  it('rotates lastGuardTarget and forbids guarding the same player next night', () => {
+    let s = n1();
+    const guard = byRole(s, 'guard')[0]!;
+    const witch = byRole(s, 'witch')[0]!;
+    const seer = byRole(s, 'seer')[0]!;
+    const wolves = byRole(s, 'werewolf');
+    const villager = byRole(s, 'villager')[0]!;
+    const villagerB = byRole(s, 'villager')[1]!;
+    // N1: guard protects villager; wolves knife villagerB; witch passes; seer peeks.
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: villager } });
+    for (const w of wolves) {
+      s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: w, data: { target: villagerB } });
+    }
+    s = applyTurn(s, { phase: 'night-witch', kind: 'witch-act', actorTwinId: witch, data: {} });
+    s = applyTurn(s, { phase: 'night-seer', kind: 'peek', actorTwinId: seer, data: { target: wolves[0] } });
+    s = applyTurn(s, { phase: 'night-resolve', kind: 'system', actorTwinId: null });
+    expect(s.lastGuardTarget).toBe(villager);
+    // Fast-forward through Day 1: sheriff election, speak, vote (eliminate wolves[0] to keep it alive for N2).
+    // NOTE: day-direction phase added in Unit 2; skip it here, re-add after Unit 2 lands.
+    s = skipSheriffElection(s);
+    while (s.phase === 'day-speak') {
+      s = applyTurn(s, { phase: 'day-speak', kind: 'speak', actorTwinId: s.alive[s.cursor], text: 'x' });
+    }
+    while (s.phase === 'day-vote') {
+      s = applyTurn(s, { phase: 'day-vote', kind: 'vote', actorTwinId: s.alive[s.cursor], data: { target: wolves[0] } });
+    }
+    if (s.phase === 'last-words') {
+      s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: s.lastWordsQueue[0], text: 'bye' });
+    }
+    expect(s.phase).toBe('night-guard');
+    // N2: try to re-guard the same villager → 违规按空守.
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: villager } });
+    expect(s.guardTargetThisNight).toBeUndefined();
+  });
+});
+
 describe('plugin registry', () => {
   it('werewolf plugin self-registers on import', () => {
     const p = getPlugin('werewolf');
