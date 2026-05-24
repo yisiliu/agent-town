@@ -43,13 +43,28 @@ function skipSheriffElection(s: WerewolfState): WerewolfState {
   return cur;
 }
 
+// Drives night-guard → night-werewolf. 9p has no guard (system skip); 12p
+// issues an empty guard action (空守) unless the test set guardTargetThisNight itself.
+function advanceToWerewolf(s: WerewolfState): WerewolfState {
+  let cur = s;
+  while (cur.phase === 'night-guard') {
+    const plan = planNextTurn(cur)!;
+    if (plan.kind === 'system') {
+      cur = applyTurn(cur, { phase: 'night-guard', kind: 'system', actorTwinId: null });
+    } else {
+      cur = applyTurn(cur, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: plan.actorTwinId, data: {} });
+    }
+  }
+  return cur;
+}
+
 describe('werewolf rules — 5p initialState (fallback config)', () => {
   it('assigns 1 werewolf, 1 seer, 3 villagers for 5 players', () => {
     const s = initialState(five, 42);
     expect(byRole(s, 'werewolf').length).toBe(1);
     expect(byRole(s, 'seer').length).toBe(1);
     expect(byRole(s, 'villager').length).toBe(3);
-    expect(s.phase).toBe('night-werewolf');
+    expect(s.phase).toBe('night-guard');
     expect(s.day).toBe(0);
     expect(s.alive).toEqual(five);
     expect(s.cursor).toBe(0);
@@ -112,9 +127,52 @@ describe('werewolf rules — board tables (9p no-guard, 12p 预女猎守)', () =
   });
 });
 
+describe('werewolf rules — Task 1.3: night-guard phase + state fields', () => {
+  it('initialState phase is night-guard', () => {
+    expect(initialState(nine, 42).phase).toBe('night-guard');
+    expect(initialState(twelve, 7).phase).toBe('night-guard');
+  });
+
+  it('initialState guardTargetThisNight and lastGuardTarget are undefined', () => {
+    const s9 = initialState(nine, 42);
+    const s12 = initialState(twelve, 7);
+    expect(s9.guardTargetThisNight).toBeUndefined();
+    expect(s9.lastGuardTarget).toBeUndefined();
+    expect(s12.guardTargetThisNight).toBeUndefined();
+    expect(s12.lastGuardTarget).toBeUndefined();
+  });
+});
+
+describe('werewolf rules — night-guard phase', () => {
+  it('9p emits a system skip (no guard) then lands on night-werewolf', () => {
+    const s = initialState(nine, 42);
+    const plan = planNextTurn(s)!;
+    expect(plan.kind).toBe('system'); // no guard to protect
+    const s2 = applyTurn(s, { phase: 'night-guard', kind: 'system', actorTwinId: null });
+    expect(s2.phase).toBe('night-werewolf');
+  });
+  it('12p emits a guard-protect turn for the living guard', () => {
+    const s = initialState(twelve, 7);
+    const guard = byRole(s, 'guard')[0]!;
+    const plan = planNextTurn(s)!;
+    expect(plan.kind).toBe('guard-protect');
+    expect(plan.actorTwinId).toBe(guard);
+    expect(plan.visibility).toEqual([guard]);
+  });
+  it('guard cannot protect the same target two nights running (违规按空守)', () => {
+    let s = initialState(twelve, 7);
+    const guard = byRole(s, 'guard')[0]!;
+    const villager = byRole(s, 'villager')[0]!;
+    s = applyTurn(s, { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, data: { target: villager } });
+    expect(s.guardTargetThisNight).toBe(villager);
+    expect(s.phase).toBe('night-werewolf');
+    // (no-repeat enforcement is verified end-to-end in Task 1.6 across nights)
+  });
+});
+
 describe('werewolf rules — 9p night-werewolf bidding', () => {
   it('plan returns the first unvoted wolf with self-only visibility (simultaneous bidding)', () => {
-    const s = initialState(nine, 42);
+    const s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const plan = planNextTurn(s);
     expect(plan).not.toBeNull();
@@ -125,7 +183,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
   });
 
   it('collapses 3 wolf votes (majority wins), advances to night-seer', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     // All 3 wolves bid the seer
@@ -138,7 +196,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
   });
 
   it('tie on 2 wolves with split votes resolves to lowest-seat wolf choice', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const villagerA = byRole(s, 'villager')[0]!;
     const villagerB = byRole(s, 'villager')[1]!;
@@ -151,7 +209,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
     s = applyTurn(s, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: wolves[2]!, data: { target: villagerB } });
     expect(s.pendingWolfKill).toBe(villagerB); // 2-1 majority
     // Test true tie: 1-1-1
-    let s2 = initialState(nine, 42);
+    let s2 = advanceToWerewolf(initialState(nine, 42));
     const villC = byRole(s2, 'villager')[2]!;
     s2 = applyTurn(s2, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: wolves[0]!, data: { target: villagerA } });
     s2 = applyTurn(s2, { phase: 'night-werewolf', kind: 'wolf-kill-bid', actorTwinId: wolves[1]!, data: { target: villagerB } });
@@ -164,7 +222,7 @@ describe('werewolf rules — 9p night-werewolf bidding', () => {
 
 describe('werewolf rules — witch potions', () => {
   it('witch save blocks wolf kill', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -187,7 +245,7 @@ describe('werewolf rules — witch potions', () => {
   });
 
   it('witch poison kills target', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -205,7 +263,7 @@ describe('werewolf rules — witch potions', () => {
   });
 
   it('cannot save AND poison the same night', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -225,7 +283,7 @@ describe('werewolf rules — witch potions', () => {
 
 describe('werewolf rules — hunter', () => {
   it('hunter shoots on lynch, takes one target down', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const hunter = byRole(s, 'hunter')[0]!;
     const seer = byRole(s, 'seer')[0]!;
@@ -266,7 +324,7 @@ describe('werewolf rules — hunter', () => {
   });
 
   it('hunter does NOT shoot when poisoned by witch', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const hunter = byRole(s, 'hunter')[0]!;
     const seer = byRole(s, 'seer')[0]!;
@@ -291,7 +349,7 @@ describe('werewolf rules — hunter', () => {
 
 describe('werewolf rules — last-words', () => {
   it('lynched player gets last-words, then game advances', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -322,15 +380,15 @@ describe('werewolf rules — last-words', () => {
     // Last-words happens
     s = applyTurn(s, { phase: 'last-words', kind: 'last-words', actorTwinId: target, text: 'I am wolf, bye' });
     expect(s.lastWordsQueue).not.toContain(target);
-    // After last-words, advance to next night
-    expect(s.phase).toBe('night-werewolf');
+    // After last-words, advance to next night (starts at night-guard)
+    expect(s.phase).toBe('night-guard');
   });
 });
 
 describe('werewolf rules — sheriff election', () => {
   // Helper: run a 9p night through, return state at the start of sheriff-claim.
   function nightOneToSheriffClaim(): WerewolfState {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -504,7 +562,7 @@ describe('werewolf rules — sheriff election', () => {
 
 describe('werewolf rules — sheriff PK round', () => {
   function nightOneToSheriffClaim(): WerewolfState {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -619,7 +677,7 @@ describe('werewolf rules — sheriff PK round', () => {
 
 describe('werewolf rules — 自爆 (wolf self-explode)', () => {
   it('wolf self-explode during sheriff-claim → 吞警徽 + skip to next night', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -638,12 +696,12 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     expect(s.alive).not.toContain(exploder);
     expect(s.sheriff).toBeUndefined();
     expect(s.sheriffElectionDone).toBe(true);
-    expect(s.phase).toBe('night-werewolf');
+    expect(s.phase).toBe('night-guard');
     expect(s.day).toBe(1); // advanced past day 0
   });
 
   it('wolf self-explode during day-vote → skip to next night, 屠边 may trigger', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const seer = byRole(s, 'seer')[0]!;
     const witch = byRole(s, 'witch')[0]!;
@@ -663,13 +721,13 @@ describe('werewolf rules — 自爆 (wolf self-explode)', () => {
     // Self-explode mid-vote
     s = applyTurn(s, { phase: 'day-vote', kind: 'self-explode', actorTwinId: wolves[1]! });
     expect(s.alive).not.toContain(wolves[1]);
-    expect(s.phase).toBe('night-werewolf');
+    expect(s.phase).toBe('night-guard');
   });
 });
 
 describe('werewolf rules — witch self-save N1 only', () => {
   it('witch CAN self-save on Night 1', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const witch = byRole(s, 'witch')[0]!;
     const seer = byRole(s, 'seer')[0]!;
@@ -686,7 +744,7 @@ describe('werewolf rules — witch self-save N1 only', () => {
   });
 
   it('witch CANNOT self-save on Night 2', () => {
-    let s = initialState(nine, 42);
+    let s = advanceToWerewolf(initialState(nine, 42));
     const wolves = byRole(s, 'werewolf');
     const witch = byRole(s, 'witch')[0]!;
     const seer = byRole(s, 'seer')[0]!;
@@ -711,6 +769,8 @@ describe('werewolf rules — witch self-save N1 only', () => {
     }
     // Now Night 2 — wolves kill the witch.
     expect(s.day).toBe(1);
+    expect(s.phase).toBe('night-guard');
+    s = advanceToWerewolf(s);
     expect(s.phase).toBe('night-werewolf');
     const aliveWolves = byRole(s, 'werewolf').filter((w) => s.alive.includes(w));
     for (const w of aliveWolves) {

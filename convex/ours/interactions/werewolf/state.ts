@@ -7,6 +7,8 @@ import type { Id } from '../../../_generated/dataModel';
 export type WerewolfRole = 'werewolf' | 'seer' | 'witch' | 'hunter' | 'guard' | 'villager';
 
 export type WerewolfPhase =
+  // Guard protects one player for the night (cannot repeat last night's target).
+  | 'night-guard'
   // Wolves vote on a target privately (each wolf picks; majority wins;
   // tie → lowest-seat wolf decides).
   | 'night-werewolf'
@@ -80,6 +82,10 @@ export interface WerewolfState {
   phase: WerewolfPhase;
 
   // ---- night state ----
+  // Guard's protect target this night (盲守, set during night-guard). Cleared each night.
+  guardTargetThisNight?: Id<'twins'>;
+  // Who the guard protected LAST night — cannot guard the same player twice in a row.
+  lastGuardTarget?: Id<'twins'>;
   // Per-wolf votes for tonight's kill target. Cleared each night.
   wolfVotes: Record<string, string>; // wolfId → targetId
   // After night-werewolf collapses wolfVotes to a single target.

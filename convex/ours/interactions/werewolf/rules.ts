@@ -38,6 +38,8 @@ function clone(s: WerewolfState): WerewolfState {
     alive: s.alive.slice(),
     hiddenMinds: { ...s.hiddenMinds },
     phase: s.phase,
+    guardTargetThisNight: s.guardTargetThisNight,
+    lastGuardTarget: s.lastGuardTarget,
     wolfVotes: { ...s.wolfVotes },
     pendingWolfKill: s.pendingWolfKill,
     witchSaveUsedTonight: s.witchSaveUsedTonight,
@@ -146,7 +148,9 @@ export function initialState(
     roles,
     alive: participants.slice(),
     hiddenMinds,
-    phase: 'night-werewolf',
+    phase: 'night-guard',
+    guardTargetThisNight: undefined,
+    lastGuardTarget: undefined,
     wolfVotes: {},
     pendingWolfKill: undefined,
     witchSaveUsedTonight: false,
@@ -230,7 +234,7 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.cursor = 0;
   } else {
     // From day-resolve: start a new night.
-    next.phase = 'night-werewolf';
+    next.phase = 'night-guard';
     next.cursor = 0;
     next.day += 1;
     next.wolfVotes = {};
@@ -239,6 +243,7 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
     next.witchSaveUsedTonight = false;
     next.nightDeaths = [];
     next.poisonedThisNight = [];
+    next.guardTargetThisNight = undefined;
   }
   return next;
 }
@@ -247,6 +252,14 @@ function transitionAfterResolve(s: WerewolfState, fromNightResolve: boolean): We
 
 export function planNextTurn(s: WerewolfState): TurnPlan | null {
   if (s.phase === 'ended') return null;
+
+  if (s.phase === 'night-guard') {
+    const guard = aliveByRole(s, 'guard')[0];
+    if (!guard) {
+      return { phase: 'night-guard', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No guard to protect tonight.' };
+    }
+    return { phase: 'night-guard', kind: 'guard-protect', actorTwinId: guard, visibility: [guard] };
+  }
 
   if (s.phase === 'night-werewolf') {
     const wolves = aliveByRole(s, 'werewolf');
@@ -595,8 +608,9 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     next.witchSaveUsedTonight = false;
     next.nightDeaths = [];
     next.poisonedThisNight = [];
+    next.guardTargetThisNight = undefined;
     next.day += 1;
-    next.phase = 'night-werewolf';
+    next.phase = 'night-guard';
 
     // Check 屠边 — exploder's death may complete a side wipe.
     const win = checkWin(next);
@@ -604,6 +618,26 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
       next.phase = 'ended';
       next.winner = win.winner as 'werewolves' | 'villagers';
     }
+    return next;
+  }
+
+  // ---- night-guard ----
+  if (s.phase === 'night-guard' && (t.kind === 'guard-protect' || t.kind === 'system' || t.kind === 'abstain')) {
+    const next = clone(s);
+    if (t.kind === 'guard-protect' && t.actorTwinId) {
+      const target = (t.data as { target?: Id<'twins'> })?.target;
+      // Valid only if alive AND not the same player guarded last night. Repeat or
+      // missing target → 空守 (guardTargetThisNight stays undefined).
+      if (
+        target &&
+        next.alive.includes(target) &&
+        next.roles[asKey(t.actorTwinId)] === 'guard' &&
+        !(next.lastGuardTarget && target === next.lastGuardTarget)
+      ) {
+        next.guardTargetThisNight = target;
+      }
+    }
+    next.phase = 'night-werewolf';
     return next;
   }
 

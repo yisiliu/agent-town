@@ -845,6 +845,14 @@ export function parseTurnText(
     return { ok: true, data: { thinking, say } };
   }
 
+  if (kind === 'guard-protect') {
+    const target = typeof action?.target === 'string' ? action.target : undefined;
+    if (target && !allowed.includes(target)) {
+      return { ok: false, error: `guard target "${target}" not in alive set` };
+    }
+    return { ok: true, data: { thinking, say, target } };
+  }
+
   if (kind === 'witch-act') {
     const use_save = action?.use_save === true;
     const poison_target = typeof action?.poison_target === 'string' ? action.poison_target : undefined;
