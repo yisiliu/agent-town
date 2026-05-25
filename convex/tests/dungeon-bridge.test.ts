@@ -8,12 +8,13 @@ const modules = import.meta.glob('../**/*.ts');
 
 // Insert a minimal ai-town world with N agents — just enough to satisfy
 // findOrCreateTwinForAgent's lookups (playerDescriptions, agentDescriptions,
-// worlds.agents). Returns the worldId + the synthetic playerIds.
+// worlds.agents) and insertInput's worldStatus/engine lookup. Returns the
+// worldId + engineId + the synthetic playerIds.
 async function seedAiTownWorld(
   t: ReturnType<typeof convexTest>,
   n: number,
   theme = 'Townsfolk',
-): Promise<{ worldId: Id<'worlds'>; playerIds: string[] }> {
+): Promise<{ worldId: Id<'worlds'>; engineId: Id<'engines'>; playerIds: string[] }> {
   return await t.run(async (ctx) => {
     const playerIds = Array.from({ length: n }, (_, i) => `p:${i}`);
     const agentIds = Array.from({ length: n }, (_, i) => `a:${i}`);
@@ -35,6 +36,20 @@ async function seedAiTownWorld(
       })),
     });
 
+    // Engine + worldStatus — insertInput looks these up by worldId and
+    // throws if absent, so every test that enqueues an engine input needs them.
+    const engineId = await ctx.db.insert('engines', {
+      running: true,
+      generationNumber: 0,
+    });
+    await ctx.db.insert('worldStatus', {
+      worldId,
+      engineId,
+      isDefault: true,
+      lastViewed: Date.now(),
+      status: 'running' as const,
+    });
+
     // playerDescriptions
     for (let i = 0; i < n; i++) {
       await ctx.db.insert('playerDescriptions', {
@@ -54,7 +69,7 @@ async function seedAiTownWorld(
         plan: `You want to make sense of who's who in this town.`,
       });
     }
-    return { worldId, playerIds };
+    return { worldId, engineId, playerIds };
   });
 }
 
@@ -275,5 +290,209 @@ describe('dungeon bridge — startDungeonGame', () => {
     expect(card).not.toBeNull();
     expect(card!.markdown).toContain('CardCheck_0');
     expect(card!.markdown).toContain('一位思考问题的居民');
+  });
+});
+
+// Insert a 'gathering' interaction directly (bypassing startDungeonGame, which
+// later tasks rewire). participants are dummy twin ids; gatherStep doesn't read
+// them. Returns the interactionId.
+async function seedGatheringInteraction(
+  t: ReturnType<typeof convexTest>,
+  worldId: Id<'worlds'>,
+  pendingPlayerIds: string[],
+  gatheringStartedAt: number,
+): Promise<Id<'interactions'>> {
+  return await t.run(async (ctx) => {
+    // Dummy twins to satisfy participants: v.array(v.id('twins')).
+    const participants: Id<'twins'>[] = [];
+    for (const pid of pendingPlayerIds) {
+      const twinId = await ctx.db.insert('twins', {
+        pseudonym: `twin-${pid}`,
+        studentRealNameHash: `aitown:${worldId}:${pid}`,
+        state: 'active' as const,
+        createdAt: Date.now(),
+      });
+      participants.push(twinId);
+    }
+    return await ctx.db.insert('interactions', {
+      type: 'werewolf',
+      status: 'gathering' as const,
+      participants,
+      state: {},
+      turnIndex: 0,
+      phase: 'gathering',
+      lastTickAt: 0,
+      seed: 1,
+      startedAt: gatheringStartedAt,
+      originType: 'dungeon' as const,
+      worldId,
+      originPlayerIds: pendingPlayerIds,
+      pendingPlayerIds,
+      gatheringStartedAt,
+    });
+  });
+}
+
+function makeConversation(convId: string, playerIds: string[]) {
+  return {
+    id: convId,
+    creator: playerIds[0]!,
+    created: 0,
+    numMessages: 0,
+    participants: playerIds.map((pid) => ({
+      playerId: pid,
+      invited: 0,
+      status: { kind: 'participating' as const, started: 0 },
+    })),
+  };
+}
+
+// Test DB is tiny — collect all engine inputs and filter/sort in JS (avoids
+// the index-typing on the loosely-typed helper `t`).
+async function namedInputs(
+  t: ReturnType<typeof convexTest>,
+  engineId: Id<'engines'>,
+  name: string,
+): Promise<{ number: number; name: string; args: any }[]> {
+  const rows = await t.run((ctx) => ctx.db.query('inputs').collect());
+  return rows
+    .filter((r: any) => r.engineId === engineId && r.name === name)
+    .sort((a: any, b: any) => a.number - b.number);
+}
+
+async function teleportInputs(t: ReturnType<typeof convexTest>, engineId: Id<'engines'>) {
+  return namedInputs(t, engineId, 'teleportPlayer');
+}
+
+describe('dungeon bridge — gatherStep', () => {
+  it('(a) all players free → pulls everyone: N teleports, N return rows, empty pending, in_progress', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'Gather');
+    const interactionId = await seedGatheringInteraction(t, worldId, playerIds, Date.now());
+
+    await t.mutation(internal.ours.mutations.gatherStep.default, { interactionId });
+
+    const teleports = await teleportInputs(t, engineId);
+    expect(teleports).toHaveLength(4);
+    for (const tp of teleports) {
+      expect(tp.args.position).toEqual({ x: -9999, y: -9999 });
+    }
+
+    const returns = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', interactionId))
+        .collect(),
+    );
+    expect(returns).toHaveLength(4);
+    // Return rows snapshot the original positions.
+    for (const r of returns) {
+      const i = playerIds.indexOf(r.playerId);
+      expect(r.savedPosition).toEqual({ x: i, y: 0 });
+    }
+
+    const inter = await t.run((ctx) => ctx.db.get(interactionId));
+    expect(inter!.pendingPlayerIds).toEqual([]);
+    expect(inter!.status).toBe('in_progress');
+    expect(inter!.inflightSince).toBeUndefined();
+  });
+
+  it('(b) a player mid-conversation (<30s) stays pending, no teleport for them', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'GatherB');
+    // p:0 and p:1 are talking to each other.
+    await t.run((ctx) =>
+      ctx.db.patch(worldId, {
+        conversations: [makeConversation('c:0', [playerIds[0]!, playerIds[1]!])] as any,
+      }),
+    );
+    const interactionId = await seedGatheringInteraction(t, worldId, playerIds, Date.now());
+
+    await t.mutation(internal.ours.mutations.gatherStep.default, { interactionId });
+
+    const teleports = await teleportInputs(t, engineId);
+    // p:2, p:3 pulled; p:0, p:1 waiting.
+    expect(teleports).toHaveLength(2);
+
+    const inter = await t.run((ctx) => ctx.db.get(interactionId));
+    expect(inter!.pendingPlayerIds!.sort()).toEqual([playerIds[0]!, playerIds[1]!].sort());
+    expect(inter!.status).toBe('gathering');
+
+    const leaves = await namedInputs(t, engineId, 'leaveConversation');
+    expect(leaves).toHaveLength(0);
+  });
+
+  it('(c) gatheringStartedAt ≥30s ago + still talking → leaveConversation then pull', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'GatherC');
+    await t.run((ctx) =>
+      ctx.db.patch(worldId, {
+        conversations: [makeConversation('c:0', [playerIds[0]!, playerIds[1]!])] as any,
+      }),
+    );
+    const longAgo = Date.now() - 31_000;
+    const interactionId = await seedGatheringInteraction(t, worldId, playerIds, longAgo);
+
+    await t.mutation(internal.ours.mutations.gatherStep.default, { interactionId });
+
+    // Both talkers force-left their conversation, then everyone pulled.
+    const leaves = await namedInputs(t, engineId, 'leaveConversation');
+    expect(leaves).toHaveLength(2);
+    for (const lv of leaves) {
+      expect(lv.args.conversationId).toBe('c:0');
+    }
+    const teleports = await teleportInputs(t, engineId);
+    expect(teleports).toHaveLength(4);
+
+    // For each forced player, the leaveConversation input number is LOWER than
+    // their teleport (so the engine applies the leave first).
+    for (const pid of [playerIds[0]!, playerIds[1]!]) {
+      const leave = leaves.find((l) => l.args.playerId === pid)!;
+      const tp = teleports.find((tt) => tt.args.playerId === pid)!;
+      expect(leave.number).toBeLessThan(tp.number);
+    }
+
+    const inter = await t.run((ctx) => ctx.db.get(interactionId));
+    expect(inter!.pendingPlayerIds).toEqual([]);
+    expect(inter!.status).toBe('in_progress');
+  });
+
+  it('(d) a pending player absent from world.players → cancelled, already-pulled restored', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'GatherD');
+    // Add a ghost id that is not in world.players. Order matters: put the
+    // free real players first so they get pulled before we hit the ghost.
+    const pending = [...playerIds, 'ghost:99'];
+    const interactionId = await seedGatheringInteraction(t, worldId, pending, Date.now());
+
+    await t.mutation(internal.ours.mutations.gatherStep.default, { interactionId });
+
+    const inter = await t.run((ctx) => ctx.db.get(interactionId));
+    expect(inter!.status).toBe('ended');
+    expect(inter!.winner).toBe('cancelled');
+    expect(inter!.endedAt).toBeDefined();
+    expect(inter!.inflightSince).toBeUndefined();
+
+    // Return-state rows for the already-pulled players are deleted by restore.
+    const returns = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', interactionId))
+        .collect(),
+    );
+    expect(returns).toHaveLength(0);
+
+    // Each already-pulled player got a pull teleport (-9999) AND a restore
+    // teleport back to their saved position.
+    const teleports = await teleportInputs(t, engineId);
+    const restoreTeleports = teleports.filter(
+      (tp) => tp.args.position.x !== -9999,
+    );
+    expect(restoreTeleports.length).toBeGreaterThan(0);
+    for (const tp of restoreTeleports) {
+      const i = playerIds.indexOf(tp.args.playerId);
+      expect(i).toBeGreaterThanOrEqual(0);
+      expect(tp.args.position).toEqual({ x: i, y: 0 });
+    }
   });
 });

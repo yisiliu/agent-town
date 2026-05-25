@@ -64,6 +64,8 @@ import type * as ours_crons_interactionTick from "../ours/crons/interactionTick.
 import type * as ours_crons_sessionWindow from "../ours/crons/sessionWindow.js";
 import type * as ours_data_npcCards from "../ours/data/npcCards.js";
 import type * as ours_interactions_gameRegistry from "../ours/interactions/gameRegistry.js";
+import type * as ours_interactions_gather from "../ours/interactions/gather.js";
+import type * as ours_interactions_restore from "../ours/interactions/restore.js";
 import type * as ours_interactions_types from "../ours/interactions/types.js";
 import type * as ours_interactions_werewolf_index from "../ours/interactions/werewolf/index.js";
 import type * as ours_interactions_werewolf_prompts from "../ours/interactions/werewolf/prompts.js";
@@ -110,6 +112,7 @@ import type * as ours_mutations_devForceResumeWorld from "../ours/mutations/devF
 import type * as ours_mutations_finalizeScan from "../ours/mutations/finalizeScan.js";
 import type * as ours_mutations_findOrCreateTwinForAgent from "../ours/mutations/findOrCreateTwinForAgent.js";
 import type * as ours_mutations_freezeWorld from "../ours/mutations/freezeWorld.js";
+import type * as ours_mutations_gatherStep from "../ours/mutations/gatherStep.js";
 import type * as ours_mutations_insertGeneratedTwins from "../ours/mutations/insertGeneratedTwins.js";
 import type * as ours_mutations_instructorAuthenticate from "../ours/mutations/instructorAuthenticate.js";
 import type * as ours_mutations_instructorRegister from "../ours/mutations/instructorRegister.js";
@@ -270,6 +273,8 @@ declare const fullApi: ApiFromModules<{
   "ours/crons/sessionWindow": typeof ours_crons_sessionWindow;
   "ours/data/npcCards": typeof ours_data_npcCards;
   "ours/interactions/gameRegistry": typeof ours_interactions_gameRegistry;
+  "ours/interactions/gather": typeof ours_interactions_gather;
+  "ours/interactions/restore": typeof ours_interactions_restore;
   "ours/interactions/types": typeof ours_interactions_types;
   "ours/interactions/werewolf/index": typeof ours_interactions_werewolf_index;
   "ours/interactions/werewolf/prompts": typeof ours_interactions_werewolf_prompts;
@@ -316,6 +321,7 @@ declare const fullApi: ApiFromModules<{
   "ours/mutations/finalizeScan": typeof ours_mutations_finalizeScan;
   "ours/mutations/findOrCreateTwinForAgent": typeof ours_mutations_findOrCreateTwinForAgent;
   "ours/mutations/freezeWorld": typeof ours_mutations_freezeWorld;
+  "ours/mutations/gatherStep": typeof ours_mutations_gatherStep;
   "ours/mutations/insertGeneratedTwins": typeof ours_mutations_insertGeneratedTwins;
   "ours/mutations/instructorAuthenticate": typeof ours_mutations_instructorAuthenticate;
   "ours/mutations/instructorRegister": typeof ours_mutations_instructorRegister;
