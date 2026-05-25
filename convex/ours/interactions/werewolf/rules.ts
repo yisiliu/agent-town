@@ -220,7 +220,7 @@ export function checkWin(s: WerewolfState): { ended: boolean; winner?: string } 
 }
 
 // Build a seat-ordered list of alive players starting AFTER the anchor seat.
-// direction='right' → ascending seat index (死右 / 警右); 'left' → descending.
+// direction='right' → ascending seat index (警右); 'left' → descending (警左).
 function computeSpeechOrder(
   s: WerewolfState,
   anchorSeat: number,
@@ -464,6 +464,9 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     while (i < order.length && !s.alive.includes(order[i]!)) i++;
     const actor = order[i];
     if (!actor) return null;
+    // The sheriff is always last in speechOrder (anchored at their seat), and a
+    // badge-pass can't fire during day-speak, so s.sheriff is stable here — the
+    // sheriff's single turn is their 归票, last.
     const kind = actor === s.sheriff ? 'sheriff-pull-vote' : 'speak';
     return { phase: 'day-speak', kind, actorTwinId: actor, visibility: 'public' };
   }
@@ -1152,8 +1155,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     // otherwise seat 0 as fallback.
     const hasSheriff = next.sheriff && next.alive.includes(next.sheriff);
     const anchorSeat = hasSheriff ? next.participants.indexOf(next.sheriff!) : 0;
-    // Direction: sheriff's explicit choice, else engine default 'right'
-    // (死右 ≡ next seat after the victim; 平安夜/双死 ≡ from seat 0 forward).
+    // Direction: sheriff's explicit choice (警右/警左), else engine default
+    // 'right'. Anchored on the sheriff's seat (or seat 0 when no sheriff).
     let direction: 'left' | 'right' = 'right';
     if (t.kind === 'day-direction') {
       const dec = (t.data as { direction?: string } | undefined)?.direction;
