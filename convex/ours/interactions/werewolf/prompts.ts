@@ -577,7 +577,7 @@ ${speechBlock}${hints}
 Respond JSON: {"thinking":"<分析每个候选人>","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
-  if (phase === 'sheriff-pull-vote' && kind === 'sheriff-pull-vote') {
+  if (kind === 'sheriff-pull-vote') {
     const candidates = state.alive.filter((id) => id !== actorTwinId);
     return `It is day ${state.day + 1}, after all village speeches.
 
@@ -875,7 +875,7 @@ export function parseTurnText(
   // with kind='self-explode' so the action layer can short-circuit the
   // normal turn-writing logic and write a self-explode turn instead.
   if (action?.self_explode === true) {
-    if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote') {
+    if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote' || kind === 'sheriff-pull-vote') {
       return { ok: true, data: { thinking, say, self_explode: true } };
     }
   }
