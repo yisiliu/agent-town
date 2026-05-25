@@ -95,7 +95,7 @@ describe('dungeon bridge — startDungeonGame', () => {
     expect(inter!.worldId).toBe(worldId);
     expect(inter!.originPlayerIds).toEqual(playerIds);
     expect(inter!.participants).toHaveLength(9);
-    expect(inter!.status).toBe('in_progress');
+    expect(inter!.status).toBe('gathering');
   });
 
   it('is idempotent: re-running with the same (worldId, playerIds) reuses twins', async () => {
@@ -109,6 +109,11 @@ describe('dungeon bridge — startDungeonGame', () => {
       playerIds,
       seed: 1,
     });
+    // End the first game so the double-borrow guard doesn't block the re-run
+    // (the guard only refuses overlaps with live gathering/in_progress games).
+    await t.run((ctx) =>
+      ctx.db.patch(a.interactionId, { status: 'ended' as const, endedAt: Date.now() }),
+    );
     // Second call — should reuse the same twin IDs
     const b = await t.mutation(api.ours.mutations.startDungeonGame.default, {
       worldId,
@@ -146,11 +151,11 @@ describe('dungeon bridge — startDungeonGame', () => {
     ).rejects.toThrow(/unknown dungeon type/);
   });
 
-  it('teleport: saves return state + moves each player to hidden coords on entry', async () => {
+  it('staging: marks players pending + leaves them in place until a gatherStep runs', async () => {
     const t = convexTest(schema, modules);
-    const { worldId, playerIds } = await seedAiTownWorld(t, 5, 'Tele');
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 5, 'Tele');
 
-    // Snapshot pre-teleport positions
+    // Snapshot pre-gather positions
     const before = await t.run(async (ctx) => {
       const world = await ctx.db.get(worldId);
       return world!.players.map((p) => ({ id: p.id, position: p.position }));
@@ -163,21 +168,42 @@ describe('dungeon bridge — startDungeonGame', () => {
       seed: 1,
     });
 
-    // Each participant should be teleported off-screen
-    const after = await t.run(async (ctx) => {
+    // Immediately after startDungeonGame: players are NOT hidden, the game is
+    // gathering with pendingPlayerIds === playerIds, and no return rows yet.
+    const inter = await t.run((ctx) => ctx.db.get(result.interactionId));
+    expect(inter!.status).toBe('gathering');
+    expect(inter!.pendingPlayerIds).toEqual(playerIds);
+    expect(inter!.gatheringStartedAt).toBeDefined();
+
+    const afterStart = await t.run(async (ctx) => {
       const world = await ctx.db.get(worldId);
       return world!.players;
     });
     for (const pid of playerIds) {
-      const player = after.find((p) => p.id === pid)!;
-      expect(player.position.x).toBe(-9999);
-      expect(player.position.y).toBe(-9999);
-      expect(player.pathfinding).toBeUndefined();
-      expect(player.activity).toBeUndefined();
-      expect(player.speed).toBe(0);
+      const player = afterStart.find((p) => p.id === pid)!;
+      expect(player.position.x).not.toBe(-9999);
+      expect(player.position.y).not.toBe(-9999);
+    }
+    const noReturnsYet = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', result.interactionId))
+        .collect(),
+    );
+    expect(noReturnsYet).toHaveLength(0);
+
+    // Run a gatherStep — now each player is pulled off-map (teleport input to
+    // -9999) and a return-state row snapshots their original position.
+    await t.mutation(internal.ours.mutations.gatherStep.default, {
+      interactionId: result.interactionId,
+    });
+
+    const teleports = await teleportInputs(t, engineId);
+    expect(teleports).toHaveLength(5);
+    for (const tp of teleports) {
+      expect(tp.args.position).toEqual({ x: -9999, y: -9999 });
     }
 
-    // dungeonReturnState rows should exist for each participant
     const returns = await t.run((ctx) =>
       ctx.db
         .query('dungeonReturnState')
@@ -185,12 +211,43 @@ describe('dungeon bridge — startDungeonGame', () => {
         .collect(),
     );
     expect(returns).toHaveLength(5);
-    // Saved positions match original pre-teleport positions
     for (const r of returns) {
       const originalPos = before.find((b) => b.id === r.playerId)!.position;
       expect(r.savedPosition.x).toBe(originalPos.x);
       expect(r.savedPosition.y).toBe(originalPos.y);
     }
+  });
+
+  it('double-borrow guard: a second game with an overlapping player throws', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, playerIds } = await seedAiTownWorld(t, 9, 'Borrow');
+
+    // First game claims players 0..4.
+    await t.mutation(api.ours.mutations.startDungeonGame.default, {
+      worldId,
+      type: 'werewolf',
+      playerIds: playerIds.slice(0, 5),
+      seed: 1,
+    });
+
+    // Second game overlapping on player 4 must be rejected.
+    await expect(
+      t.mutation(api.ours.mutations.startDungeonGame.default, {
+        worldId,
+        type: 'werewolf',
+        playerIds: playerIds.slice(4, 9),
+        seed: 2,
+      }),
+    ).rejects.toThrow(/already in another dungeon game/);
+
+    // A fully disjoint second game (players 5..8) is fine.
+    const ok = await t.mutation(api.ours.mutations.startDungeonGame.default, {
+      worldId,
+      type: 'werewolf',
+      playerIds: playerIds.slice(5, 9),
+      seed: 3,
+    });
+    expect(ok.interactionId).toBeDefined();
   });
 
   it('teleport: restores positions when the game ends', async () => {
@@ -207,6 +264,12 @@ describe('dungeon bridge — startDungeonGame', () => {
       type: 'werewolf',
       playerIds,
       seed: 42,
+    });
+
+    // Run a gatherStep to pull everyone in (creating the dungeonReturnState
+    // rows the end-restore path reads) and flip the game to in_progress.
+    await t.mutation(internal.ours.mutations.gatherStep.default, {
+      interactionId: result.interactionId,
     });
 
     // Drive the game directly to ended by force-marking a winner state
