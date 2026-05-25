@@ -43,11 +43,20 @@ export default internalAction({
         interactionId: inter._id,
         inflightSince: now,
       });
-      await ctx.scheduler.runAfter(
-        0,
-        ref.ours.actions.interactionTakeTurn.default,
-        { interactionId: inter._id, chainCount: 0 },
-      );
+      // 'gathering' games are driven by gatherStep (a mutation that pulls
+      // pending agents in + self-reschedules); 'in_progress' games take a
+      // turn via the takeTurn action chain.
+      if (inter.status === 'gathering') {
+        await ctx.scheduler.runAfter(0, ref.ours.mutations.gatherStep.default, {
+          interactionId: inter._id,
+        });
+      } else {
+        await ctx.scheduler.runAfter(
+          0,
+          ref.ours.actions.interactionTakeTurn.default,
+          { interactionId: inter._id, chainCount: 0 },
+        );
+      }
     }
     /* eslint-enable @typescript-eslint/no-explicit-any */
   },

@@ -6,9 +6,19 @@ import { internalQuery } from '../../_generated/server';
 export default internalQuery({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db
+    // Both 'in_progress' (turn-taking) and 'gathering' (staged borrow) games
+    // need ticking. A single `.eq` on the status index can't disjunct, so
+    // run two indexed queries and merge stalest-first.
+    const inProgress = await ctx.db
       .query('interactions')
       .withIndex('by_status_and_lastTickAt', (q) => q.eq('status', 'in_progress'))
       .take(50);
+    const gathering = await ctx.db
+      .query('interactions')
+      .withIndex('by_status_and_lastTickAt', (q) => q.eq('status', 'gathering'))
+      .take(50);
+    return [...inProgress, ...gathering]
+      .sort((a, b) => a.lastTickAt - b.lastTickAt)
+      .slice(0, 50);
   },
 });

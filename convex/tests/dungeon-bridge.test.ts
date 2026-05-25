@@ -559,3 +559,27 @@ describe('dungeon bridge — gatherStep', () => {
     }
   });
 });
+
+describe('listActiveInteractions', () => {
+  it('returns in_progress AND gathering, excludes ended', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId } = await seedAiTownWorld(t, 3, 'ListActive');
+    const ids = await t.run(async (ctx) => {
+      const base = {
+        type: 'werewolf', participants: [] as Id<'twins'>[], state: {}, turnIndex: 0,
+        phase: 'x', lastTickAt: 0, seed: 1, startedAt: Date.now(),
+        originType: 'dungeon' as const, worldId,
+      };
+      return {
+        ip: await ctx.db.insert('interactions', { ...base, status: 'in_progress' as const }),
+        ga: await ctx.db.insert('interactions', { ...base, status: 'gathering' as const, pendingPlayerIds: ['p:0'], gatheringStartedAt: Date.now() }),
+        en: await ctx.db.insert('interactions', { ...base, status: 'ended' as const }),
+      };
+    });
+    const active = await t.query(internal.ours.queries.listActiveInteractions.default, {});
+    const activeIds = active.map((a) => a._id);
+    expect(activeIds).toContain(ids.ip);
+    expect(activeIds).toContain(ids.ga);
+    expect(activeIds).not.toContain(ids.en);
+  });
+});
