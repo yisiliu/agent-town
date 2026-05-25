@@ -47,12 +47,14 @@ export async function isTownTickAllowed(ctx: ActionCtxLike): Promise<boolean> {
 // stops the engine, it just slows the wall-clock interval between
 // runStep iterations so off-hours ambient activity is cheap. The
 // instructor flips state via the existing freeze/resume buttons.
-const PACE_LIVE_MS = 2500;
-// Frozen pace: 30s. With dev's parallel instance stopped, the cost
-// audit (2026-05-23) put 30s at ~¥1/day — affordable enough that
-// "visible activity for casual drop-in viewers" wins over "cheapest
-// possible". Course-long projected spend ≈ ¥30-40.
-const PACE_FROZEN_MS = 30_000;
+const PACE_LIVE_MS = 1000;
+// Frozen pace: 10s. NOTE the cost mechanics — runStep catches sim-time up
+// to real-time but is capped at maxTicksPerStep(600)×tickDuration(16ms)=
+// 9.6s of sim per step. At 10s real/step the sim runs ~96% of real-time
+// (vs ~32% at the old 30s), so frozen is no longer a cheap-idle state —
+// idle burn is ~3× the old 30s pace, approaching live-rate. Lower
+// maxTicksPerStep instead if you want livelier-but-cheap frozen.
+const PACE_FROZEN_MS = 10_000;
 
 export function stepDurationMsFor(status: WorldStatusShape | null): number {
   if (!status) return PACE_LIVE_MS;

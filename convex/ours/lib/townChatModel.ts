@@ -19,9 +19,10 @@ export const PRO_CALLTYPES = new Set<string>([
   // future behavior — a bad one compounds. Runs rarely (threshold 2000)
   // so Pro cost is negligible.
   'memory_reflection',
-  // Opening line sets the tone and is read disproportionately; low volume
-  // vs conversation_continue, so Pro cost stays modest.
-  'conversation_start',
+  // NOTE: conversation_start used to be Pro too, but a 2026-05-25 audit
+  // found it was 9% of calls yet 64% of the bill, while the rest of each
+  // dialogue (conversation_continue) is flash anyway — Pro on the opener
+  // alone buys an inconsistent quality profile. Flashed it.
 ]);
 
 export function townChatModel(callType: string): string {

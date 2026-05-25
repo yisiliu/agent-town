@@ -13,15 +13,15 @@ describe('townChatModel', () => {
   });
 
   it('keeps non-escalated town callTypes on flash', () => {
+    expect(townChatModel('conversation_start')).toBe(TOWN_FLASH_MODEL);
     expect(townChatModel('conversation_continue')).toBe(TOWN_FLASH_MODEL);
     expect(townChatModel('conversation_leave')).toBe(TOWN_FLASH_MODEL);
     expect(townChatModel('memory_summary')).toBe(TOWN_FLASH_MODEL);
     expect(townChatModel('memory_importance')).toBe(TOWN_FLASH_MODEL);
   });
 
-  it('escalates the configured callTypes to pro', () => {
+  it('escalates memory_reflection to pro', () => {
     expect(townChatModel('memory_reflection')).toBe(TOWN_PRO_MODEL);
-    expect(townChatModel('conversation_start')).toBe(TOWN_PRO_MODEL);
   });
 
   it('routes a callType listed in PRO_CALLTYPES to pro, rest stay flash', () => {
