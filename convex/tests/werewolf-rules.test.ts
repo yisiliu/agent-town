@@ -999,6 +999,12 @@ describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
     expect(sp).not.toMatch(/pendingWolfKill|guarded \^ saved/); // no kill-math leaked to a villager's shared prompt
   });
 
+  it('strategy guidance covers speaking-order leverage', () => {
+    const s0 = initialState(twelve, 7);
+    const sp = buildSystemPrompt({ state: s0, actorTwinId: byRole(s0, 'werewolf')[0]!, cardMarkdown: '', aliveNames: {} });
+    expect(sp).toMatch(/发言顺序|先发言|后发言|归票|位置/);
+  });
+
   it('seer with NO peeks gets explicit "you have not peeked" reminder', () => {
     const s = initialState(nine, 42);
     const seer = byRole(s, 'seer')[0]!;
