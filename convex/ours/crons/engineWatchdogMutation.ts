@@ -89,7 +89,10 @@ export default internalMutation({
     // Same gen as last check — bump counter, only revive on 2nd consecutive.
     const unchanged = (wd.unchangedCount ?? 0) + 1;
     if (unchanged < 2) {
-      await ctx.db.patch(wd._id, { unchangedCount: unchanged });
+      // Reset wedgedCount too: a gen-freeze here means this check is NOT a
+      // confirmed wedge observation, so it must break the "2 consecutive
+      // wedge checks" chain rather than let a stale count of 1 carry over.
+      await ctx.db.patch(wd._id, { unchangedCount: unchanged, wedgedCount: 0 });
       return { action: 'wait-for-confirmation', gen, unchanged };
     }
 
