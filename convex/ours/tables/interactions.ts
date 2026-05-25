@@ -9,6 +9,11 @@ export const interactions = defineTable({
   type: v.string(),
   status: v.union(
     v.literal('lobby'),
+    // 'gathering' = dungeon game created, pulling its agents in (waiting for
+    // any mid-conversation to finish) before turns start. Flips to
+    // 'in_progress' once pendingPlayerIds is empty. The turn machinery
+    // no-ops while not 'in_progress', so turns naturally wait.
+    v.literal('gathering'),
     v.literal('in_progress'),
     v.literal('ended'),
   ),
@@ -38,6 +43,13 @@ export const interactions = defineTable({
   // (twin IDs). Same length, same index correspondence — participants[i] is
   // the twin for originPlayerIds[i]'s ai-town agent.
   originPlayerIds: v.optional(v.array(v.string())),
+  // ---- Gathering phase (dungeon borrow, conversation-aware) ----
+  // ai-town playerIds not yet pulled into the game (still being gathered).
+  // Drained by gatherStep as each agent becomes conversation-free; when
+  // empty the game flips to 'in_progress'.
+  pendingPlayerIds: v.optional(v.array(v.string())),
+  // When the gathering phase started — drives the 30s force-leave deadline.
+  gatheringStartedAt: v.optional(v.number()),
 })
   .index('by_status_and_lastTickAt', ['status', 'lastTickAt'])
   .index('by_type', ['type']);
