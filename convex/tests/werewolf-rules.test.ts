@@ -2166,4 +2166,15 @@ describe('werewolf rules — 12p full day-1 cycle with live guard', () => {
     for (let g = 0; g < 50; g++) { const p = planNextTurn(cur)!; if (cur.phase !== 'day-speak') break; seen.push(p.kind); cur = applyTurn(cur, { phase: 'day-speak', kind: 'speak', actorTwinId: p.actorTwinId!, data: { say: 'x' } }); }
     expect(seen).not.toContain('sheriff-pull-vote');
   });
+
+  it('day-direction prompt offers 警左/警右, never 死左/死右 (even with a night death)', () => {
+    const s0 = initialState(twelve, 7);
+    const sheriff = byRole(s0, 'seer')[0]!;
+    const victim = byRole(s0, 'villager')[0]!;
+    const s: WerewolfState = { ...s0, alive: s0.participants.filter((id) => id !== victim), nightDeaths: [victim], phase: 'day-direction', speechCursor: 0, sheriff };
+    const p = buildUserPrompt({ state: s, actorTwinId: sheriff, phase: 'day-direction', kind: 'day-direction', visibleTurns: [], aliveNames: {} });
+    expect(p).toContain('警左');
+    expect(p).not.toContain('死左');
+    expect(p).not.toContain('死右');
+  });
 });

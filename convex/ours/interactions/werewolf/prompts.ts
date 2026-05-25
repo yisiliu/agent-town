@@ -321,20 +321,6 @@ function focusHints(
     );
   }
 
-  // (3) Sitting next to last night's victim?
-  if (state.nightDeaths.length > 0 && state.alive.includes(actorTwinId)) {
-    const myIdx = state.participants.indexOf(actorTwinId);
-    for (const victim of state.nightDeaths) {
-      const vIdx = state.participants.indexOf(victim);
-      if (Math.abs(myIdx - vIdx) === 1 || Math.abs(myIdx - vIdx) === state.participants.length - 1) {
-        hints.push(
-          `你座位上紧挨着昨晚出局的玩家（${nameMap[victim as unknown as string] ?? victim}）。可以从这个角度聊一句——狼人可能会避开邻座来洗白，也可能反过来。`,
-        );
-        break;
-      }
-    }
-  }
-
   // (4) Suspicion concentration — votes piling up
   const voteTally: Record<string, number> = {};
   for (const v of Object.values(state.pendingVotes)) {
@@ -687,9 +673,10 @@ Respond JSON: {"thinking":"...","action":{...}}`;
   if (phase === 'day-direction' && kind === 'day-direction') {
     const oneDied = state.nightDeaths.length === 1;
     const victim = oneDied ? (nameMap[state.nightDeaths[0]! as unknown as string] ?? state.nightDeaths[0]) : null;
-    const choiceText = oneDied
-      ? `昨夜 ${victim} 出局。请选择发言方向：**死左** (从死者左侧顺位起) 或 **死右** (从死者右侧顺位起)。`
-      : `昨夜${state.nightDeaths.length === 0 ? '平安无事' : '多人出局'}。请选择发言方向：**警左** 或 **警右** (从你的位置起)。`;
+    const nightSummary = oneDied
+      ? `昨夜 ${victim} 出局。`
+      : `昨夜${state.nightDeaths.length === 0 ? '平安无事' : '多人出局'}。`;
+    const choiceText = `${nightSummary}请选择发言方向：**警左** 或 **警右**（从你警长座位的左/右侧顺位起，绕一圈，你最后归票）。`;
     return `It is day ${state.day + 1}. 你是警长，请决定今天的发言顺序方向。
 
 ${choiceText}
