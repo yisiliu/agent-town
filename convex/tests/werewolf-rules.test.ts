@@ -992,6 +992,13 @@ describe('werewolf rules — summarizeFor (post-game memory)', () => {
 });
 
 describe('werewolf prompts — grounding facts (anti-hallucination)', () => {
+  it('system prompt is a flow digest, not engine resolution internals', () => {
+    const s0 = initialState(twelve, 7);
+    const sp = buildSystemPrompt({ state: s0, actorTwinId: byRole(s0, 'villager')[0]!, cardMarkdown: '', aliveNames: {} });
+    expect(sp).toMatch(/归票|发言顺序|按座位/);                 // flow present
+    expect(sp).not.toMatch(/pendingWolfKill|guarded \^ saved/); // no kill-math leaked to a villager's shared prompt
+  });
+
   it('seer with NO peeks gets explicit "you have not peeked" reminder', () => {
     const s = initialState(nine, 42);
     const seer = byRole(s, 'seer')[0]!;
