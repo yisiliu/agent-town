@@ -54,10 +54,11 @@
 ./convex/aiTown/agentOperations.ts
 ./convex/aiTown/conversation.ts
 ./convex/aiTown/conversationMembership.ts
+./convex/aiTown/dungeonInputs.ts
 ./convex/aiTown/game.ts   # EXEMPT: stepDuration bumped to 2500ms (classroom pacing)
 ./convex/aiTown/ids.ts
 ./convex/aiTown/inputHandler.ts
-./convex/aiTown/inputs.ts
+./convex/aiTown/inputs.ts   # EXEMPT: dungeon teleport input for borrow/return
 ./convex/aiTown/insertInput.ts
 ./convex/aiTown/location.ts
 ./convex/aiTown/main.ts   # EXEMPT: tick-gate (Task 14) + dynamic stepDuration (24/7 pace)
