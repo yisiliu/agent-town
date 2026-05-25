@@ -523,7 +523,8 @@ ${log}
 PK CANDIDATE SPEECHES (round-1 + PK rounds):
 ${speechBlock}${hints}${grounding}
 
-Respond JSON: {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"...","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (phase === 'sheriff-vote' && kind === 'sheriff-vote') {
@@ -560,7 +561,8 @@ ${log}
 CANDIDATE SPEECHES (carefully read each):
 ${speechBlock}${hints}
 
-Respond JSON: {"thinking":"<分析每个候选人>","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"<分析每个候选人>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (kind === 'sheriff-pull-vote') {
@@ -734,7 +736,8 @@ ${wolfHint}
 CANDIDATES (all alive):
 ${listCandidates(candidates, nameMap)}${hints}${grounding}${explodeOption}
 
-Respond JSON (REQUIRED non-empty target): {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON (REQUIRED non-empty target): {"thinking":"...","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
   }
 
   if (phase === 'last-words' && kind === 'last-words') {
@@ -803,7 +806,8 @@ ${renderPublicLog(state.publicLog.slice(-8), nameMap)}
 PK CANDIDATES:
 ${listCandidates(state.dayPkCandidates ?? [], nameMap)}${hints}${grounding}
 
-Respond JSON: {"thinking":"...","say":"<one sentence>","action":{"target":"<one of the PK candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"...","action":{"target":"<one of the PK candidate ids>"}}`;
   }
 
   if (phase === 'hunter-shoot' && kind === 'hunter-shoot') {

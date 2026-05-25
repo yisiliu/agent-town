@@ -1127,6 +1127,50 @@ describe('werewolf prompts — sheriff vote sees candidate speeches', () => {
   });
 });
 
+describe('werewolf prompts — silent voting (target + private thinking, no public say)', () => {
+  it('day-vote prompt requests target + private thinking, no public say', () => {
+    const s0 = initialState(twelve, 7);
+    const actor = s0.alive[0]!;
+    const s: WerewolfState = { ...s0, phase: 'day-vote', cursor: 0 };
+    const p = buildUserPrompt({ state: s, actorTwinId: actor, phase: 'day-vote', kind: 'vote', visibleTurns: [], aliveNames: {} });
+    expect(p).not.toContain('"say"'); // JSON say field removed (robust to wording)
+    expect(p).toContain('target');
+  });
+
+  it('sheriff-vote prompt requests target + private thinking, no public say', () => {
+    const s0 = initialState(twelve, 7);
+    const candA = s0.alive[0]!;
+    const candB = s0.alive[1]!;
+    const actor = s0.alive[2]!;
+    const s: WerewolfState = { ...s0, phase: 'sheriff-vote', sheriffCandidates: [candA, candB] };
+    const p = buildUserPrompt({ state: s, actorTwinId: actor, phase: 'sheriff-vote', kind: 'sheriff-vote', visibleTurns: [], aliveNames: {} });
+    expect(p).not.toContain('"say"');
+    expect(p).toContain('target');
+  });
+
+  it('sheriff-pk-vote prompt requests target + private thinking, no public say', () => {
+    const s0 = initialState(twelve, 7);
+    const candA = s0.alive[0]!;
+    const candB = s0.alive[1]!;
+    const actor = s0.alive[2]!;
+    const s: WerewolfState = { ...s0, phase: 'sheriff-pk-vote', sheriffCandidates: [candA, candB], sheriffPkActive: true };
+    const p = buildUserPrompt({ state: s, actorTwinId: actor, phase: 'sheriff-pk-vote', kind: 'sheriff-pk-vote', visibleTurns: [], aliveNames: {} });
+    expect(p).not.toContain('"say"');
+    expect(p).toContain('target');
+  });
+
+  it('day-pk-vote prompt requests target + private thinking, no public say', () => {
+    const s0 = initialState(twelve, 7);
+    const candA = s0.alive[0]!;
+    const candB = s0.alive[1]!;
+    const actor = s0.alive[2]!;
+    const s: WerewolfState = { ...s0, phase: 'day-pk-vote', dayPkCandidates: [candA, candB] };
+    const p = buildUserPrompt({ state: s, actorTwinId: actor, phase: 'day-pk-vote', kind: 'day-pk-vote', visibleTurns: [], aliveNames: {} });
+    expect(p).not.toContain('"say"');
+    expect(p).toContain('target');
+  });
+});
+
 describe('werewolf prompts — buildSystemPrompt', () => {
   it('wraps card in UNTRUSTED_CARD delimiters and includes role briefing', () => {
     const s = initialState(nine, 42);

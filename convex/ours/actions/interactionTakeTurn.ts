@@ -186,6 +186,18 @@ export default internalAction({
       if (plan.phase === 'sheriff-claim' && plan.kind === 'sheriff-claim' && d.run !== true) {
         sayField = '';
       }
+      // Silent voting: vote turns (lynch / sheriff-election / PK revote) emit
+      // only a private thinking + their target — no public 发言. The vote
+      // target still flows into pendingVotes via turn.data unchanged. (PK
+      // *speech* kinds stay public; they're speeches, not votes.)
+      if (
+        plan.kind === 'vote' ||
+        plan.kind === 'sheriff-vote' ||
+        plan.kind === 'sheriff-pk-vote' ||
+        plan.kind === 'day-pk-vote'
+      ) {
+        sayField = '';
+      }
       // 自爆 override — if the wolf returned self_explode:true, the parser
       // already filtered to wolf-eligible phases. Write a 'self-explode'
       // turn (visibility=public) regardless of the original plan kind.
