@@ -17,6 +17,11 @@ export const engineWatchdog = defineTable({
   // alarm. With cron at 1-minute cadence: 2 unchanged = 120s of no
   // tick = engine actually dead.
   unchangedCount: v.optional(v.number()),
+  // Consecutive checks where the engine is running + ticking (gen advances)
+  // but EVERY agent is stuck on a stale inProgressOperation — a "wedged but
+  // running" town (0 conversations). Require 2 in a row before recovering, so a
+  // transient all-busy moment doesn't trip it. See lib/watchdogWedge.ts.
+  wedgedCount: v.optional(v.number()),
   // Diagnostic: how many times we've had to revive. Lets us monitor
   // platform health without a separate metrics pipeline.
   reviveCount: v.number(),

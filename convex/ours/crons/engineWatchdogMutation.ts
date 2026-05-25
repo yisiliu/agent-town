@@ -1,5 +1,6 @@
 import { internalMutation } from '../../_generated/server';
 import { stopEngine, startEngine } from '../../aiTown/main';
+import { isTownWedged } from '../lib/watchdogWedge';
 
 // Mutation-based watchdog. Convex auto-retries mutations on transient
 // platform errors, but NOT actions (see docs.convex.dev/scheduling).
@@ -47,15 +48,40 @@ export default internalMutation({
     }
 
     if (!engine.running) {
-      await ctx.db.patch(wd._id, { lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0 });
+      await ctx.db.patch(wd._id, { lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0, wedgedCount: 0 });
       return { action: 'engine-intentionally-stopped', gen };
     }
 
     if (gen > wd.lastSeenGen) {
+      // Engine is alive (ticking). But check for a "wedged but running" town:
+      // every agent stuck on a stale inProgressOperation → 0 conversations.
+      // ai-town's own ACTION_TIMEOUT recovery is in sim-time and barely
+      // advances when frozen, so the wedge never self-heals. Recover with the
+      // same stop+start: startEngine jumps currentTime to now, making the stale
+      // ops exceed ACTION_TIMEOUT so they clear on the next tick.
+      const world = await ctx.db.get(status.worldId);
+      if (world && isTownWedged(world.agents)) {
+        const wedgedCount = (wd.wedgedCount ?? 0) + 1;
+        if (wedgedCount < 2) {
+          await ctx.db.patch(wd._id, { lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0, wedgedCount });
+          return { action: 'wedge-wait-for-confirmation', gen, wedgedCount };
+        }
+        await stopEngine(ctx, status.worldId);
+        await startEngine(ctx, status.worldId);
+        await ctx.db.patch(wd._id, {
+          lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0, wedgedCount: 0,
+          reviveCount: reviveCount + 1, lastReviveAt: now,
+        });
+        console.warn(
+          `engineWatchdog un-wedged: all agents stuck on inProgressOperation for ${wedgedCount} checks. Total revives: ${reviveCount + 1}`,
+        );
+        return { action: 'unwedged', gen, reviveCount: reviveCount + 1 };
+      }
       await ctx.db.patch(wd._id, {
         lastSeenGen: gen,
         lastSeenAt: now,
         unchangedCount: 0,
+        wedgedCount: 0,
       });
       return { action: 'healthy', gen, advance: gen - wd.lastSeenGen, reviveCount };
     }
@@ -76,6 +102,7 @@ export default internalMutation({
       lastSeenGen: gen,
       lastSeenAt: now,
       unchangedCount: 0,
+      wedgedCount: 0,
       reviveCount: reviveCount + 1,
       lastReviveAt: now,
     });
