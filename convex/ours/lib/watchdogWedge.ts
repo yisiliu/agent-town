@@ -1,22 +1,28 @@
-// Pure detector for a "wedged but running" town: the engine ticks
-// (generationNumber advances) but every agent is stuck on a stale
-// `inProgressOperation` — so `agent.tick` skips them all (they look busy),
-// nobody starts a conversation or moves, and the town sits inert with 0
-// conversations. This happens when in-flight `agentDoSomething` actions are
-// killed (e.g. by a `convex deploy` / platform restart): every agent is left
-// with inProgressOperation set. ai-town clears these only after ACTION_TIMEOUT
-// of SIMULATED time (agent.tick), which at the frozen pace advances far too
-// slowly to fire — so the wedge never self-heals. The watchdog uses this to
-// trigger a stop+start, whose `startEngine` jumps currentTime to now and makes
-// the stale ops clear immediately.
+// Pure detector for a town that is "running but inert": the engine ticks
+// (generationNumber advances) yet NObody is conversing and NObody is moving.
+// This is the user-visible symptom of "all conversations stopped".
 //
-// Signal: EVERY agent (of a non-empty set) holds an inProgressOperation. In a
-// healthy town ops complete + clear within seconds, so they never ALL stay set
-// — and the watchdog additionally requires this to persist across 2 checks
-// before acting, guarding against a transient all-busy moment.
-export function isTownWedged(
-  agents: ReadonlyArray<{ inProgressOperation?: unknown }>,
-): boolean {
-  if (agents.length === 0) return false;
-  return agents.every((a) => a.inProgressOperation !== undefined);
+// It happens after a disruption — a `convex deploy` / platform restart kills
+// in-flight `agentDoSomething` actions, leaving agents stuck on stale
+// `inProgressOperation`s. ai-town only clears those after ACTION_TIMEOUT (120s)
+// of SIMULATED time (agent.tick); at the frozen pace the sim advances too
+// slowly to fire it, so the town never re-establishes activity on its own. The
+// recovery is a stop+start: `startEngine` jumps `currentTime` to now, which
+// clears the stale ops on the next tick and lets agents re-fire (verified to
+// un-stick a frozen prod town: 0→11 moving, 0→5 conversations).
+//
+// We key on the SYMPTOM (no conversations AND no movement) rather than the
+// specific "all agents wedged" cause, because a partial wedge can also leave
+// the town inert. A healthy town — even frozen — almost always has someone
+// conversing or wandering, and the watchdog additionally requires this to hold
+// across 2 consecutive checks (~2 min) before acting, so a momentary lull
+// won't trip it (and a false stop+start is harmless).
+export function isTownInert(world: {
+  conversations: ReadonlyArray<unknown>;
+  players: ReadonlyArray<{ pathfinding?: unknown }>;
+}): boolean {
+  if (world.players.length === 0) return false; // no town to recover
+  if (world.conversations.length > 0) return false; // someone's talking
+  if (world.players.some((p) => p.pathfinding !== undefined)) return false; // someone's moving
+  return true;
 }

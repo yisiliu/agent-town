@@ -1,6 +1,6 @@
 import { internalMutation } from '../../_generated/server';
 import { stopEngine, startEngine } from '../../aiTown/main';
-import { isTownWedged } from '../lib/watchdogWedge';
+import { isTownInert } from '../lib/watchdogWedge';
 
 // Mutation-based watchdog. Convex auto-retries mutations on transient
 // platform errors, but NOT actions (see docs.convex.dev/scheduling).
@@ -53,14 +53,15 @@ export default internalMutation({
     }
 
     if (gen > wd.lastSeenGen) {
-      // Engine is alive (ticking). But check for a "wedged but running" town:
-      // every agent stuck on a stale inProgressOperation → 0 conversations.
-      // ai-town's own ACTION_TIMEOUT recovery is in sim-time and barely
-      // advances when frozen, so the wedge never self-heals. Recover with the
-      // same stop+start: startEngine jumps currentTime to now, making the stale
-      // ops exceed ACTION_TIMEOUT so they clear on the next tick.
+      // Engine is alive (ticking). But check for a "running but inert" town:
+      // nobody conversing AND nobody moving — the symptom of "all conversations
+      // stopped" (agents left on stale inProgressOperations after a deploy/
+      // restart). ai-town's own ACTION_TIMEOUT recovery is in sim-time and
+      // barely advances when frozen, so it never self-heals. Recover with a
+      // stop+start: startEngine jumps currentTime to now, clearing the stale
+      // ops on the next tick so agents re-fire (verified to work at frozen).
       const world = await ctx.db.get(status.worldId);
-      if (world && isTownWedged(world.agents)) {
+      if (world && isTownInert(world)) {
         const wedgedCount = (wd.wedgedCount ?? 0) + 1;
         if (wedgedCount < 2) {
           await ctx.db.patch(wd._id, { lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0, wedgedCount });
