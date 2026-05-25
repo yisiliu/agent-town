@@ -4,6 +4,7 @@ import { agentTables } from './agent/schema';
 import { aiTownTables } from './aiTown/schema';
 import { conversationId, playerId } from './aiTown/ids';
 import { engineTables } from './engine/schema';
+import { gangs, gangMembers, gangMessages, gangInvites } from './ours/tables/gangs';
 
 export default defineSchema({
   music: defineTable({
@@ -20,6 +21,12 @@ export default defineSchema({
   })
     .index('conversationId', ['worldId', 'conversationId'])
     .index('messageUuid', ['conversationId', 'messageUuid']),
+
+  // Gang system tables
+  gangs,
+  gangMembers,
+  gangMessages,
+  gangInvites,
 
   ...agentTables,
   ...aiTownTables,
