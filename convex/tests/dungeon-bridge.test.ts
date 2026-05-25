@@ -250,13 +250,13 @@ describe('dungeon bridge — startDungeonGame', () => {
     expect(ok.interactionId).toBeDefined();
   });
 
-  it('teleport: restores positions when the game ends', async () => {
+  it('teleport: enqueues a restore teleportPlayer per return row when the game ends', async () => {
     const t = convexTest(schema, modules);
-    const { worldId, playerIds } = await seedAiTownWorld(t, 4, 'Restore');
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'Restore');
 
     const before = await t.run(async (ctx) => {
       const world = await ctx.db.get(worldId);
-      return world!.players.map((p) => ({ id: p.id, position: p.position }));
+      return world!.players.map((p) => ({ id: p.id, position: p.position, facing: p.facing }));
     });
 
     const result = await t.mutation(api.ours.mutations.startDungeonGame.default, {
@@ -301,22 +301,99 @@ describe('dungeon bridge — startDungeonGame', () => {
       visibility: [wolfTwin],
     });
 
-    // Game should now be ended; positions should be restored
+    // Game should now be ended.
     const final = await t.run((ctx) => ctx.db.get(result.interactionId));
     expect(final!.status).toBe('ended');
 
-    const after = await t.run(async (ctx) => {
-      const world = await ctx.db.get(worldId);
-      return world!.players;
-    });
-    for (const pid of playerIds) {
-      const player = after.find((p) => p.id === pid)!;
-      const orig = before.find((b) => b.id === pid)!;
-      expect(player.position.x).toBe(orig.position.x);
-      expect(player.position.y).toBe(orig.position.y);
+    // Restore goes through the teleportPlayer engine input (convex-test does
+    // NOT apply engine inputs, so world.players stays at -9999). Assert one
+    // restore teleport per return row, carrying the saved position + facing.
+    const teleports = await teleportInputs(t, engineId);
+    const restoreTeleports = teleports.filter((tp) => tp.args.position.x !== -9999);
+    expect(restoreTeleports).toHaveLength(4);
+    for (const tp of restoreTeleports) {
+      const orig = before.find((b) => b.id === tp.args.playerId)!;
+      expect(tp.args.position).toEqual({ x: orig.position.x, y: orig.position.y });
+      expect(tp.args.facing).toEqual({ dx: orig.facing.dx, dy: orig.facing.dy });
     }
 
-    // Return-state rows should be cleaned up
+    // Return-state rows should be cleaned up.
+    const returns = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', result.interactionId))
+        .collect(),
+    );
+    expect(returns).toHaveLength(0);
+  });
+
+  it('teleport: a return row for a player absent from world.players still restores + deletes (no strand)', async () => {
+    const t = convexTest(schema, modules);
+    const { worldId, engineId, playerIds } = await seedAiTownWorld(t, 4, 'Absent');
+
+    const result = await t.mutation(api.ours.mutations.startDungeonGame.default, {
+      worldId,
+      type: 'werewolf',
+      playerIds,
+      seed: 42,
+    });
+
+    // Pull everyone in (creates the dungeonReturnState rows) and flip to in_progress.
+    await t.mutation(internal.ours.mutations.gatherStep.default, {
+      interactionId: result.interactionId,
+    });
+
+    // Simulate a player vanishing from world.players (e.g. removed while the
+    // game was live) by dropping p:0 from the world doc. Its return row stays.
+    await t.run(async (ctx) => {
+      const world = await ctx.db.get(worldId);
+      await ctx.db.patch(worldId, {
+        players: world!.players.filter((p) => p.id !== playerIds[0]) as any,
+      });
+    });
+    const absentRow = await t.run((ctx) =>
+      ctx.db
+        .query('dungeonReturnState')
+        .withIndex('by_interaction', (q) => q.eq('interactionId', result.interactionId))
+        .filter((q) => q.eq(q.field('playerId'), playerIds[0]!))
+        .unique(),
+    );
+    expect(absentRow).not.toBeNull();
+
+    // Force-end the game (wolves win).
+    const inter = await t.run((ctx) => ctx.db.get(result.interactionId));
+    const state = inter!.state as { roles: Record<string, string>; alive: any[] };
+    const wolves = Object.entries(state.roles)
+      .filter(([, r]) => r === 'werewolf')
+      .map(([id]) => id);
+    await t.run((ctx) =>
+      ctx.db.patch(result.interactionId, {
+        state: { ...state, alive: wolves.map((w) => w as any) },
+      }),
+    );
+    const wolfTwin = wolves[0] as any;
+    // No crash even though p:0 is no longer in world.players.
+    await t.mutation(internal.ours.mutations.appendInteractionTurn.default, {
+      interactionId: result.interactionId,
+      expectedTurnIndex: inter!.turnIndex,
+      phase: 'night-werewolf',
+      kind: 'wolf-kill-bid',
+      actorTwinId: wolfTwin,
+      text: 'wolves done',
+      data: { target: wolves[1] ?? wolves[0] },
+      visibility: [wolfTwin],
+    });
+
+    const final = await t.run((ctx) => ctx.db.get(result.interactionId));
+    expect(final!.status).toBe('ended');
+
+    // The absent player STILL got a restore teleport enqueued (no silent strand).
+    const teleports = await teleportInputs(t, engineId);
+    const restoreTeleports = teleports.filter((tp) => tp.args.position.x !== -9999);
+    expect(restoreTeleports.map((tp) => tp.args.playerId)).toContain(playerIds[0]);
+    expect(restoreTeleports).toHaveLength(4);
+
+    // ALL return rows deleted, including the absent player's.
     const returns = await t.run((ctx) =>
       ctx.db
         .query('dungeonReturnState')

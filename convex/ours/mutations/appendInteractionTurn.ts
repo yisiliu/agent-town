@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
 import { getPlugin } from '../interactions/gameRegistry';
+import { restoreDungeonPlayers } from '../interactions/restore';
 import '../interactions/werewolf'; // self-register
 
 // Appends a turn to an interaction. Re-loads the interaction's current
@@ -88,31 +89,7 @@ export default internalMutation({
       // Dungeon-origin games: teleport each player back to their saved
       // position + facing, then delete the return-state rows.
       if (inter.originType === 'dungeon' && inter.worldId) {
-        const returnRows = await ctx.db
-          .query('dungeonReturnState')
-          .withIndex('by_interaction', (q) =>
-            q.eq('interactionId', args.interactionId),
-          )
-          .collect();
-        const world = await ctx.db.get(inter.worldId);
-        if (world && returnRows.length > 0) {
-          const players = world.players.map((p) => ({ ...p }));
-          for (const ret of returnRows) {
-            const idx = players.findIndex((p) => p.id === ret.playerId);
-            if (idx !== -1) {
-              players[idx] = {
-                ...players[idx]!,
-                position: { x: ret.savedPosition.x, y: ret.savedPosition.y },
-                facing: { dx: ret.savedFacing.dx, dy: ret.savedFacing.dy },
-                pathfinding: undefined,
-                activity: undefined,
-                speed: 0,
-              };
-            }
-            await ctx.db.delete(ret._id);
-          }
-          await ctx.db.patch(inter.worldId, { players });
-        }
+        await restoreDungeonPlayers(ctx, args.interactionId, inter.worldId);
       }
     } else {
       await ctx.db.patch(args.interactionId, {
