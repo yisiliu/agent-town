@@ -3,6 +3,43 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 
+// Festival presets mirror convex/ours/lib/festivals.ts (shell cannot import convex/).
+const FESTIVAL_PRESETS = [
+  {
+    kind: 'spring_festival',
+    label: '春节',
+    eventText:
+      '今天是春节，镇上贴着春联、放着鞭炮，大家互相拜年，说吉祥话、聊团圆饭。',
+  },
+  {
+    kind: 'mid_autumn',
+    label: '中秋',
+    eventText:
+      '今天是中秋节，月亮又圆又亮，人们聊着月饼、赏月和与家人团聚的事。',
+  },
+  {
+    kind: 'halloween',
+    label: '万圣节',
+    eventText:
+      '今天是万圣节，有人穿着奇装异服，糖果、南瓜灯和恶作剧的话题很多。',
+  },
+  {
+    kind: 'april_fools',
+    label: '愚人节',
+    eventText:
+      '今天是愚人节，大伙儿互相开玩笑、搞小恶作剧，但要把握分寸、别伤人。',
+  },
+  { kind: 'custom', label: '自定义', eventText: '' },
+] as const;
+
+type FestivalKind = (typeof FESTIVAL_PRESETS)[number]['kind'];
+
+const FESTIVAL_DURATION_MS = 60 * 60 * 1000;
+
+const FESTIVAL_LABEL: Record<string, string> = Object.fromEntries(
+  FESTIVAL_PRESETS.map((p) => [p.kind, p.label]),
+);
+
 // String-form refs — see chat/page.tsx for rationale.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const twinListRef = 'ours/queries/instructorTwinList:default' as any;
@@ -207,26 +244,54 @@ function TownEventSection() {
     townEventRef,
     defaultWorld ? { worldId: defaultWorld.worldId } : 'skip',
   ) as
-    | { eventText: string; setAt: number; agentsAffected: number }
+    | {
+        eventText: string;
+        festivalKind?: string;
+        setAt: number;
+        expiresAt?: number;
+        agentsAffected: number;
+      }
     | null
     | undefined;
   const setEvent = useMutation(setEventRef);
   const clearEvent = useMutation(clearEventRef);
-  const [draft, setDraft] = useState('');
+  const [festivalKind, setFestivalKind] = useState<FestivalKind>('spring_festival');
+  const [draft, setDraft] = useState<string>(FESTIVAL_PRESETS[0].eventText);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!defaultWorld) return null;
 
+  const onFestivalChange = (kind: FestivalKind) => {
+    setFestivalKind(kind);
+    const preset = FESTIVAL_PRESETS.find((p) => p.kind === kind);
+    if (preset && kind !== 'custom') {
+      setDraft(preset.eventText);
+    }
+  };
+
   const onSet = async (e: FormEvent) => {
     e.preventDefault();
-    if (!draft.trim()) return;
-    setPending(true); setError(null);
+    const text =
+      festivalKind === 'custom'
+        ? draft.trim()
+        : (FESTIVAL_PRESETS.find((p) => p.kind === festivalKind)?.eventText ?? draft.trim());
+    if (!text) return;
+    setPending(true);
+    setError(null);
     try {
-      await setEvent({ worldId: defaultWorld.worldId, eventText: draft.trim() });
-      setDraft('');
-    } catch (err) { setError((err as Error).message); }
-    finally { setPending(false); }
+      await setEvent({
+        worldId: defaultWorld.worldId,
+        eventText: text,
+        festivalKind,
+        durationMs: FESTIVAL_DURATION_MS,
+      });
+      if (festivalKind === 'custom') setDraft('');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPending(false);
+    }
   };
   const onClear = async () => {
     setPending(true); setError(null);
@@ -235,44 +300,78 @@ function TownEventSection() {
     finally { setPending(false); }
   };
 
+  const festivalLabel = event?.festivalKind
+    ? FESTIVAL_LABEL[event.festivalKind] ?? event.festivalKind
+    : null;
+
   return (
     <section className="space-y-3 rounded border p-4 dark:border-neutral-700">
-      <h2 className="text-lg font-semibold">小镇事件（全局开关）</h2>
+      <h2 className="text-lg font-semibold">节日 / 小镇事件</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">
-        在所有 AI 的人设前面加一段背景。大概 30 秒后，下一轮对话就会带上。
+        选择节日后，所有 AI 的人设会带上当前背景（约 30 秒内生效）。默认持续 24 游戏小时（约 1 真实小时），到期自动清除。
       </p>
       {event && (
         <div className="rounded bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
-          <div className="font-semibold">当前事件：</div>
-          <div className="italic">"{event.eventText}"</div>
+          <div className="font-semibold">
+            当前{festivalLabel ? `「${festivalLabel}」` : '事件'}：
+          </div>
+          <div className="italic">&ldquo;{event.eventText}&rdquo;</div>
           <div className="mt-1 text-neutral-500">
-            {new Date(event.setAt).toLocaleTimeString()} 设的 · 影响 {event.agentsAffected} 位 AI
+            {new Date(event.setAt).toLocaleTimeString()} 触发 · 影响 {event.agentsAffected} 位 AI
+            {event.expiresAt && (
+              <> · 预计 {new Date(event.expiresAt).toLocaleTimeString()} 结束</>
+            )}
           </div>
         </div>
       )}
-      <form onSubmit={onSet} className="flex gap-2">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="例：下雨了 / 来了个陌生人 / 学校着火了"
-          className="flex-1 rounded border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-        />
-        <button
-          type="submit"
-          disabled={pending || !draft.trim()}
-          className="rounded bg-amber-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-        >
-          设置
-        </button>
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={pending || !event}
-          className="rounded border px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-600"
-        >
-          清除
-        </button>
+      <form onSubmit={onSet} className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="festival-select" className="text-sm text-neutral-600 dark:text-neutral-400">
+            节日
+          </label>
+          <select
+            id="festival-select"
+            value={festivalKind}
+            onChange={(e) => onFestivalChange(e.target.value as FestivalKind)}
+            className="rounded border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          >
+            {FESTIVAL_PRESETS.map((p) => (
+              <option key={p.kind} value={p.kind}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {festivalKind === 'custom' ? (
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="例：镇上举办校园开放日 / 突然下暴雨"
+            className="w-full rounded border px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          />
+        ) : (
+          <p className="rounded bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            {draft}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={pending || (festivalKind === 'custom' && !draft.trim())}
+            className="rounded bg-amber-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+          >
+            触发节日
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={pending || !event}
+            className="rounded border px-3 py-2 text-sm disabled:opacity-50 dark:border-neutral-600"
+          >
+            手动结束
+          </button>
+        </div>
       </form>
       {error && <p className="text-red-600">{error}</p>}
     </section>

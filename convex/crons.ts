@@ -37,6 +37,13 @@ crons.interval(
   { minutes: 1 },
   ref.ours.crons.engineWatchdogMutation.default,
 );
+
+// Auto-clear instructor-set festivals / town events after expiresAt.
+crons.interval(
+  'expire-town-events',
+  { minutes: 1 },
+  ref.ours.crons.expireTownEvents.default,
+);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default crons;

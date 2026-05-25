@@ -18,6 +18,7 @@ export default mutation({
     worldId: v.id('worlds'),
     eventText: v.string(),
     durationMs: v.optional(v.number()),
+    festivalKind: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.eventText.length === 0) {
@@ -58,20 +59,20 @@ export default mutation({
       touched += 1;
     }
 
+    const row = {
+      eventText: args.eventText,
+      festivalKind: args.festivalKind,
+      setAt: now,
+      expiresAt,
+      originalIdentities: originals,
+    };
+
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        eventText: args.eventText,
-        setAt: now,
-        expiresAt,
-        originalIdentities: originals,
-      });
+      await ctx.db.patch(existing._id, row);
     } else {
       await ctx.db.insert('townEventState', {
         worldId: args.worldId,
-        eventText: args.eventText,
-        setAt: now,
-        expiresAt,
-        originalIdentities: originals,
+        ...row,
       });
     }
     return { ok: true, agentsAffected: touched, expiresAt };
