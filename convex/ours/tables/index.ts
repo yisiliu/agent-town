@@ -2,6 +2,7 @@ import { twins } from './twins';
 import { cards } from './cards';
 import { consents } from './consents';
 import { objects } from './objects';
+import { gangs, gangMembers, gangMessages, gangInvites } from './gangs';
 import { interactions } from './interactions';
 import { interactionTurns } from './interactionTurns';
 import { interactionMemories } from './interactionMemories';
@@ -32,6 +33,10 @@ export const ourTables = {
   cards,
   consents,
   objects,
+  gangs,
+  gangMembers,
+  gangMessages,
+  gangInvites,
   interactions,
   interactionTurns,
   interactionMemories,
