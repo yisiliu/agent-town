@@ -63,9 +63,12 @@ export default internalMutation({
       const world = await ctx.db.get(status.worldId);
       if (world && isTownInert(world)) {
         const wedgedCount = (wd.wedgedCount ?? 0) + 1;
-        if (wedgedCount < 2) {
+        // 3 consecutive checks (~3 min at the 1-min cron) of zero conversations
+        // before recovering — conservative, since a false stop+start is only a
+        // harmless re-kick but we'd rather not interrupt a briefly-quiet town.
+        if (wedgedCount < 3) {
           await ctx.db.patch(wd._id, { lastSeenGen: gen, lastSeenAt: now, unchangedCount: 0, wedgedCount });
-          return { action: 'wedge-wait-for-confirmation', gen, wedgedCount };
+          return { action: 'inert-wait-for-confirmation', gen, wedgedCount };
         }
         await stopEngine(ctx, status.worldId);
         await startEngine(ctx, status.worldId);
