@@ -15,6 +15,7 @@ export default query({
     if (!evt) return null;
     return {
       eventText: evt.eventText,
+      festivalKind: evt.festivalKind,
       setAt: evt.setAt,
       expiresAt: evt.expiresAt,
       agentsAffected: Object.keys(evt.originalIdentities).length,

@@ -17,6 +17,8 @@ import { v } from 'convex/values';
 export const townEventState = defineTable({
   worldId: v.id('worlds'),
   eventText: v.string(),
+  // Preset id when set via instructor festival UI (#4); omitted for legacy free-text events.
+  festivalKind: v.optional(v.string()),
   setAt: v.number(),
   expiresAt: v.optional(v.number()),
   // Map of agentDescription._id (stringified) → original identity text.
