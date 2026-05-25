@@ -228,7 +228,7 @@ OUTPUT FORMAT — every turn, respond with valid JSON only. No commentary outsid
 
 The schema has up to three fields:
 - "thinking" (REQUIRED): your PRIVATE strategic reasoning — 1-3 sentences. Logged for spectators but NEVER shown to other agents. Plan your bluff here, note what you actually believe, choose your moment.
-- "say" (REQUIRED for: day-speak, day-vote, last-words, hunter-shoot): your PUBLIC statement (1-2 sentences) — what the other agents will read. Stay in character. For night-only turns (wolf-kill-bid, peek, witch-act), OMIT "say".
+- "say" (REQUIRED for: day-speak, last-words, hunter-shoot): your PUBLIC statement (1-2 sentences) — what the other agents will read. Stay in character. For night-only turns (wolf-kill-bid, peek, witch-act) AND all vote turns (day-vote / sheriff-vote / PK votes — voting is silent), OMIT "say".
 - "action" (REQUIRED for: wolf-kill-bid, peek, vote, witch-act, hunter-shoot): a structured payload — usually {"target":"<exact twin id>"} from the candidates list. For witch-act see the witch's user prompt for variants.
 
 The "target" id MUST be copied verbatim from the user-prompt candidate list. Do not invent ids.
@@ -274,7 +274,7 @@ function focusHints(
     );
   }
 
-  // (4) Suspicion concentration — votes piling up
+  // (3) Suspicion concentration — votes piling up
   const voteTally: Record<string, number> = {};
   for (const v of Object.values(state.pendingVotes)) {
     voteTally[v] = (voteTally[v] || 0) + 1;
@@ -284,7 +284,7 @@ function focusHints(
     const otherVotesAgainstMe = voteTally[actorKey] ?? 0;
     if (otherVotesAgainstMe >= 2 && !myVoteTarget) {
       hints.push(
-        `你已经收到 ${otherVotesAgainstMe} 张投票。是被冲票了——可能需要在投票里反向归票一个最可疑的人。`,
+        `你已经收到 ${otherVotesAgainstMe} 张投票。是被冲票了——可以反向投一个最可疑的人（投票不公开发言，理由写进 thinking）。`,
       );
     }
     const leadingTallies = Object.entries(voteTally)
@@ -293,12 +293,12 @@ function focusHints(
     if (leadingTallies.length > 0 && leadingTallies[0]![1] >= 2) {
       const tgt = leadingTallies[0]![0];
       hints.push(
-        `${nameMap[tgt] ?? tgt} 目前票数最高（${leadingTallies[0]![1]} 票）。可以选择跟票或反对——但要给一个理由。`,
+        `${nameMap[tgt] ?? tgt} 目前票数最高（${leadingTallies[0]![1]} 票）。你可以跟票或反对——理由写进 thinking（投票阶段不公开发言）。`,
       );
     }
   }
 
-  // (5) Seer's private knowledge
+  // (4) Seer's private knowledge
   if (state.roles[actorKey] === 'seer' && state.seerKnowledge.length > 0) {
     const checks = state.seerKnowledge
       .map(
@@ -309,7 +309,7 @@ function focusHints(
     hints.push(`你的查验记录（仅你自己看到）：\n${checks}`);
   }
 
-  // (6) Witch private knowledge + potion-use nudges
+  // (5) Witch private knowledge + potion-use nudges
   if (state.roles[actorKey] === 'witch' && state.phase === 'night-witch') {
     if (state.pendingWolfKill) {
       const victimName = nameMap[state.pendingWolfKill as unknown as string] ?? state.pendingWolfKill;
