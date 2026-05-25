@@ -37,10 +37,6 @@ export type WerewolfPhase =
   | 'sheriff-claim'
   // Day-1 only: only 警下 (non-candidates) vote for one of the candidates.
   | 'sheriff-vote'
-  // Daily, after the regular day-speak: the sheriff (if elected) gives a
-  // final summary + recommended lynch target (归票). Non-binding —
-  // other players may follow or ignore.
-  | 'sheriff-pull-vote'
   // A dead hunter chooses one player to shoot down with them. Only enters
   // when hunter death was not by poison.
   | 'hunter-shoot'

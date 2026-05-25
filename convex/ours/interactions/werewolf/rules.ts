@@ -220,7 +220,7 @@ export function checkWin(s: WerewolfState): { ended: boolean; winner?: string } 
 }
 
 // Build a seat-ordered list of alive players starting AFTER the anchor seat.
-// direction='right' → ascending seat index (死右 / 警右); 'left' → descending.
+// direction='right' → ascending seat index (警右); 'left' → descending (警左).
 function computeSpeechOrder(
   s: WerewolfState,
   anchorSeat: number,
@@ -425,14 +425,6 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     };
   }
 
-  if (s.phase === 'sheriff-pull-vote') {
-    if (!s.sheriff) {
-      // No sheriff → skip directly to day-vote.
-      return { phase: 'sheriff-pull-vote', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff to pull-vote.' };
-    }
-    return { phase: 'sheriff-pull-vote', kind: 'sheriff-pull-vote', actorTwinId: s.sheriff, visibility: 'public' };
-  }
-
   if (s.phase === 'day-direction') {
     if (!s.sheriff || !s.alive.includes(s.sheriff)) {
       return { phase: 'day-direction', kind: 'system', actorTwinId: null, visibility: 'public', systemText: 'No sheriff — engine sets speech order.' };
@@ -472,7 +464,11 @@ export function planNextTurn(s: WerewolfState): TurnPlan | null {
     while (i < order.length && !s.alive.includes(order[i]!)) i++;
     const actor = order[i];
     if (!actor) return null;
-    return { phase: 'day-speak', kind: 'speak', actorTwinId: actor, visibility: 'public' };
+    // The sheriff is always last in speechOrder (anchored at their seat), and a
+    // badge-pass can't fire during day-speak, so s.sheriff is stable here — the
+    // sheriff's single turn is their 归票, last.
+    const kind = actor === s.sheriff ? 'sheriff-pull-vote' : 'speak';
+    return { phase: 'day-speak', kind, actorTwinId: actor, visibility: 'public' };
   }
 
   if (s.phase === 'day-vote') {
@@ -1152,26 +1148,15 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     return next;
   }
 
-  // ---- sheriff-pull-vote ----
-  if (s.phase === 'sheriff-pull-vote' && (t.kind === 'sheriff-pull-vote' || t.kind === 'abstain' || t.kind === 'system')) {
-    const next = clone(s);
-    next.phase = 'day-vote';
-    next.cursor = 0;
-    return next;
-  }
-
   // ---- day-direction ----
   if (s.phase === 'day-direction' && (t.kind === 'day-direction' || t.kind === 'system' || t.kind === 'abstain')) {
     const next = clone(s);
-    const oneDied = next.nightDeaths.length === 1;
-    // Anchor: lone victim's seat when exactly one died (死左/死右);
-    // otherwise seat 0 (警左/警右 with sheriff, or pure fallback without).
-    let anchorSeat = 0;
-    if (oneDied) {
-      anchorSeat = next.participants.indexOf(next.nightDeaths[0]!);
-    }
-    // Direction: sheriff's explicit choice, else engine default 'right'
-    // (死右 ≡ next seat after the victim; 平安夜/双死 ≡ from seat 0 forward).
+    // Anchor: sheriff's seat when sheriff is alive (sheriff ends up LAST);
+    // otherwise seat 0 as fallback.
+    const hasSheriff = next.sheriff && next.alive.includes(next.sheriff);
+    const anchorSeat = hasSheriff ? next.participants.indexOf(next.sheriff!) : 0;
+    // Direction: sheriff's explicit choice (警右/警左), else engine default
+    // 'right'. Anchored on the sheriff's seat (or seat 0 when no sheriff).
     let direction: 'left' | 'right' = 'right';
     if (t.kind === 'day-direction') {
       const dec = (t.data as { direction?: string } | undefined)?.direction;
@@ -1186,7 +1171,7 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
   }
 
   // ---- day-speak ----
-  if (s.phase === 'day-speak' && (t.kind === 'speak' || t.kind === 'abstain')) {
+  if (s.phase === 'day-speak' && (t.kind === 'speak' || t.kind === 'sheriff-pull-vote' || t.kind === 'abstain')) {
     const next = clone(s);
     const order = next.speechOrder ?? next.alive;
     let cursor = (next.speechCursor ?? 0) + 1;
@@ -1194,14 +1179,8 @@ export function applyTurn(s: WerewolfState, t: AppliedTurn): WerewolfState {
     while (cursor < order.length && !next.alive.includes(order[cursor]!)) cursor++;
     next.speechCursor = cursor;
     if (cursor >= order.length) {
-      // After all alive players spoke, if there's a sheriff alive, they
-      // get the final pull-vote turn before voting begins.
-      if (next.sheriff && next.alive.includes(next.sheriff)) {
-        next.phase = 'sheriff-pull-vote';
-      } else {
-        next.phase = 'day-vote';
-        next.cursor = 0;
-      }
+      next.phase = 'day-vote';
+      next.cursor = 0;
     }
     return next;
   }

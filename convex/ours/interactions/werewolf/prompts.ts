@@ -8,101 +8,54 @@ import type { HiddenMind, WerewolfRole, WerewolfState } from './state';
 // ~$0.18/M (10% of cache-miss) after the first call per (game, player).
 // ===========================================================================
 
-const GAME_RULES_CLASS = `========== 狼人杀 9 人局规则与战术 (PRE-GAME CLASS) ==========
+const GAME_RULES_CLASS = `========== 狼人杀 流程摘要 (PRE-GAME CLASS) ==========
 
-【配置】3 狼人 + 1 预言家 + 1 女巫 + 1 猎人 + 3 平民。
+【配置】狼人 + 神职(预言家/女巫/猎人/守卫) + 平民。具体人数见每回合候选人列表。
 
-【一夜流程】
-  1. 狼人杀人（每只狼独立投票一个目标，多数决；同票时低位狼定夺）
-  2. 预言家查验（揭示某人的真实阵营）
-  3. 女巫行动（可救今夜被刀者 或 毒一个玩家；同夜不可同用；解药/毒药各一次）
-  4. 系统结算（夜里的伤亡公布；猎人若死于刀（非毒）可开枪带走一人）
+【流程伪代码 — 每个游戏循环】
+loop:
+  # ===== 夜晚 (各角色私密行动，互不可见) =====
+  night-guard:     守卫保护 1 人挡刀 (可空守, 不可连守同一人)        # 仅守卫行动
+  night-werewolf:  每只狼独立投 1 个刀杀目标 (盲投, 多数决, 同票低位狼定) # 仅狼人行动
+  night-witch:     女巫看到今夜被刀者 → 救 / 毒 / 跳过 (同夜不可既救又毒)  # 仅女巫行动
+  night-seer:      预言家查验 1 人阵营                              # 仅预言家行动
+  night-resolve:   系统结算夜间伤亡
+    if 死者含猎人 and not 被毒:   → hunter-shoot  (猎人开枪带走 1 人)
+    if 首夜:                     → last-words     (夜亡者依次发表遗言)
 
-【一天流程】
-  1. **第一天早上：警长竞选 (Day 1 only)**
-     - 每人决定是否上警 (run for sheriff)
-     - 上警者依次发言；警下 (non-candidates) 投票选警长
-     - 如果第一轮平票 → PK 加赛（仅平票候选人再讲一轮 → 警下再投）；第二轮仍平 → 流警
-     - 警长归属一人后（或流警），进入下一阶段
-     - 任何狼人都可以在警上阶段「自爆」(self-explode)——立即翻牌为狼，吞警徽（本局无警长），白天结束直接进入夜晚。这是狼队的高阶战术。
-  2. 白天发言（按座位顺序，每人一句话）
-  3. **警长归票 (sheriff pull-vote)**：警长做最后总结，推荐放逐目标——其他人可跟可不跟
-  4. 白天投票（每人投一个目标）
-     - 警长的票算 1.5 票；其他人 1 票；多数决
-  5. 系统结算（票最多者被放逐；放逐者发表遗言；若是猎人则可开枪）
-     - 若警长被放逐：选择传警徽给某人（继承归票权**和 1.5 票**）或撕毁警徽（从此无警长）
-  6. 进入下一夜
+  # ===== 白天 =====
+  if day == 1:     # 仅第一天
+    sheriff-claim:  每人决定 上警(run) / 警下(stay) (狼可改为自爆)     # 全员
+    sheriff-vote:   警下者投票选警长 (候选人不投)                    # 仅警下
+      on tie:       → sheriff-pk-speech → sheriff-pk-vote; 再平 → 流警(无警长)
+    # 当选警长获 1.5 票权重 + 每日归票权
 
-【胜利条件 — 屠边 (modern 9p standard)】
-  - 好人胜：所有狼人都死亡。
-  - 狼人胜（屠神边）：所有「神职」(预言/女巫/猎人) 都死亡（即使平民还活着）。
-  - 狼人胜（屠民边）：所有「平民」都死亡（即使神职还活着）。
-  - 这是「屠边」规则，不是简单的人数对比。狼人需要清掉**整边**才胜利。
+  day-direction:   警长选发言方向 警左/警右 (无警长则系统默认)        # 仅警长
+  day-speak:       全员按座位顺序各发言一次, 警长最后发言 = 归票总结+推荐放逐 # 全员, 狼可自爆
+  day-vote:        全员各投 1 个放逐目标 (silent: 只投票, 不公开发言)   # 全员, 狼可自爆
+                   # 警长 1.5 票, 其余 1 票, 多数决
+  day-resolve:     系统结算放逐
+    on tie:        → day-pk-speech → day-pk-vote; 再平 → 平安日(无人出局)
+    被放逐者:       → last-words (遗言); 若是猎人 → hunter-shoot
+    若警长出局:     传警徽给 1 人(继承归票+1.5票) 或 撕警徽(此后无警长)
+  goto loop  # 进入下一夜
 
-【关键战术（请深刻记住）】
+【自爆 (仅狼人)】可在 sheriff-claim / day-speak / day-vote 触发: 立即翻牌死亡, 当日剩余流程全部跳过, 直接进入下一夜。
 
-★ 通用：
-  - 「说」(say) 是公开的，所有人都能看到；「想」(thinking) 是私密的，只有你自己和上帝（系统）看得见。狼可以在「想」里规划骗局，在「说」里执行。
-  - 第一夜信息少，发言不要太肯定；第二夜起，信息累积后要敢于推断与归票。
-  - 沉默 = 危险。如果你 2 天不说话，狼人和好人都会把你当目标。
-  - 投票时，看群体趋势——你的票如果是关键票，要慎重；如果已大势已定，跟票即可。
+【胜利条件 — 屠边】
+  好人胜:  所有狼人死亡。
+  狼人胜:  所有神职死亡 (屠神边) OR 所有平民死亡 (屠民边)。
+  注意: 是清掉「整边」, 不是简单人数对比。
 
-★ 狼人（你的目标：让 3 个狼活下来 ≥ 6 个好人活下来）：
-  - 首夜：刀「显眼」的人（在你的角度看可能是预言/女巫/猎人）。名字气场、座位、首发都是参考。
-  - 不要全队同时刀同一个！故意分散刀票可掩盖狼队身份（投票阶段亦然）。
-  - 跳预言家/女巫/猎人是高级骗术：声称自己是某神职，给假查验或假救助。能误导好人乱投票。但跳得太勉强会暴露。
-  - 投票时：不要太早出票！前 2-3 票里出现 2 只狼会被识别。跟着好人风口走，把人推向边缘。
-  - 如果好人开始互相怀疑（比如两个真神职互咬），加入归票，加深内讧。
-  - 遗言：如果你被推出去了，可以「反水」装预言家给一个假查验，把火往好人身上引。
+【说 vs 想】"say"(发言) 公开, 人人可见; "thinking"(想) 私密, 只有你和系统可见 —— 骗局规划在「想」里, 执行在「说」里。
 
-★ 预言家（你的目标：用查验信息推狼，但避免被刀）：
-  - 跳神的时机：连续 2 天查验对（即 2 个金水 + 0 个假水）后，第二天上午跳预言家，公开两个查验。这是最强的一刀。
-  - 跳得太早（首日跳）：第二天就会被狼刀，剩下的信息没人能用。
-  - 跳得太晚（第三天）：你大概率已经被刀了。
-  - 如果首夜查到狼，先在「想」里记下，白天发言时旁敲侧击但不直跳。第二夜再查一个，第二天上午带 2 查验跳。
-  - 提防有狼跳预言家：注意他给的查验对不对得上你已知的事实。
-  - 警长选举（v1 暂不实现）：第二天跳的预言家自带影响力。
-
-★ 女巫（你的目标：神药用出最大价值）：
-  - 你每晚知道狼人刀了谁。**用药！不要怀著解药/毒药等死。** 这是新手最大的错误——女巫死了药也带不走。
-  - 解药：建议第一夜留着，除非被刀的明显是关键人（比如首夜被刀的是你 100% 信任的对象）。但如果你撑到第三晚还没用，请用掉。
-  - 毒药：留给「确定是狼」的人。第二天预言家如果跳了，给出查验对，你可以晚上验证一下——如果查的是狼，第三晚毒掉那个狼，村民阵营基本赢。
-  - 但**不要囤药超过 3 天**。狼人会刀你，你死了药就废了。
-  - 同夜不能既救又毒。
-  - 被毒的猎人**不能开枪**！这是反猎人的关键武器——如果你怀疑某人是猎人，毒他。
-
-★ 猎人（你的目标：威胁拖延 + 最后一击命中真狼）：
-  - 你白天可以「跳猎人」恐吓——好人不敢轻易投你（怕你带走真神），狼也不敢轻易刀你（怕你白天被推时带走他们）。
-  - 但是：**被女巫毒了就不能开枪**。所以你跳猎人时，要观察女巫是否还活着——如果女巫死了，你跳猎人最有保障。
-  - 死亡时（不论被刀还是被推），仔细想清楚开枪带谁。看场上谁最像狼。如果毫无头绪，可以带「最沉默的人」——通常是潜伏的狼。
-
-★ 平民（你的目标：投票推狼）：
-  - 你没有特殊信息，所以你的发言要靠逻辑+观察。
-  - 信任公开跳出来的预言家（特别是有 2 个查验时）。但要警惕同时跳的两个「预言家」——其中一个肯定是狼。
-  - 你可以**跳预言家骗狼**：高级技巧。狼会以为你是真预言家，分一刀给你，保护真预言家。但风险大——真预言家可能因此不敢跳。
-  - 投票时跟随逻辑链——票最多的人，看是谁最早归票，那个人可能是狼。
-
-★ 狼人自爆 (self-explode) 战术：
-  - 仅狼人可用，可在「警上阶段」「白天发言阶段」「白天投票阶段」触发。
-  - 触发后立即翻牌死亡（暴露狼身），当天剩余流程全部跳过，直接进入下一夜。
-  - 使用时机举例：(a) 警上时真预言家已经报了精准查验，留着也会被推 → 自爆吞警徽；(b) 白天好人已经把另一只狼推到边缘 → 自爆打断投票救队友；(c) 白天发言被点到时无法自证 → 主动自爆保留一刀。
-  - 反向风险：少了一只狼会让屠边更难达成；只有当跳出去能为狼队换更多收益时才用。
-
-★ 警长竞选 (上警/警下) 策略：
-  - 狼人**必须**有 1-2 个上警，否则预言家会单方面控警徽，狼队被压制。
-  - 预言家**几乎必上**——警徽 + 跳身份的组合是好人最强一枪。
-  - 上警的发言要有内容：跳身份、给查验、抛分析。空泛的"我能担当"会被识破。
-  - 警下也有战术：神职 (女巫/猎人) 警下可以隐藏身份避开狼刀。
-  - 警长的 1.5 票在场上有时是决定性的，但归票推荐不是强制——你不必跟警长投。
-  - 撕警徽 vs 传警徽：警长被推时，如果你信任某玩家是好人 → 传；如果场上局势混乱 → 撕。
-  - 警长死后可把警徽传给信任的玩家，继承者获得归票权和 1.5 票；也可撕毁警徽（从此无警长）。
-
-★ 关键身份判断启发：
-  - 谁第一个发言归票？通常这种人有信息——可能是预言家，也可能是狼。
-  - 谁的发言只「分析」不「站位」？可能是高玩好人，也可能是怕暴露的狼。
-  - 谁的发言和后续投票不一致？很可疑（说怀疑 A，结果投 B）。
-  - 死亡顺序：狼优先杀神职（预言/女巫/猎人）。你死亡顺序的位置，反映你被认为是什么身份。
-
+【位置即信息 — 发言顺序是战术资源】
+  - 发言顺序很重要: 你在第几个开口, 直接决定你能掌握多少信息、能施加多大影响。
+  - 早发言: 信息少, 但可定调、起跳(抢身份)、给后面的人设框架, 逼他们站边。
+  - 晚发言: 看得到前面所有人的发言, 可抗推、归票、临时调整站边。
+  - 警长归票(最后发言)是全场最高杠杆位——可带节奏、定生死, 一句话决定大家投谁。
+  - 警长选 警左/警右 本身是战术武器: 决定谁先开口起跳、谁被压在最后归票。
+  - 结合你自己的座位和今天的发言方向决定策略: 多激进、何时跳、跟谁的票。
 ================================================================
 `;
 
@@ -275,7 +228,7 @@ OUTPUT FORMAT — every turn, respond with valid JSON only. No commentary outsid
 
 The schema has up to three fields:
 - "thinking" (REQUIRED): your PRIVATE strategic reasoning — 1-3 sentences. Logged for spectators but NEVER shown to other agents. Plan your bluff here, note what you actually believe, choose your moment.
-- "say" (REQUIRED for: day-speak, day-vote, last-words, hunter-shoot): your PUBLIC statement (1-2 sentences) — what the other agents will read. Stay in character. For night-only turns (wolf-kill-bid, peek, witch-act), OMIT "say".
+- "say" (REQUIRED for: day-speak, last-words, hunter-shoot): your PUBLIC statement (1-2 sentences) — what the other agents will read. Stay in character. For night-only turns (wolf-kill-bid, peek, witch-act) AND all vote turns (day-vote / sheriff-vote / PK votes — voting is silent), OMIT "say".
 - "action" (REQUIRED for: wolf-kill-bid, peek, vote, witch-act, hunter-shoot): a structured payload — usually {"target":"<exact twin id>"} from the candidates list. For witch-act see the witch's user prompt for variants.
 
 The "target" id MUST be copied verbatim from the user-prompt candidate list. Do not invent ids.
@@ -321,21 +274,7 @@ function focusHints(
     );
   }
 
-  // (3) Sitting next to last night's victim?
-  if (state.nightDeaths.length > 0 && state.alive.includes(actorTwinId)) {
-    const myIdx = state.participants.indexOf(actorTwinId);
-    for (const victim of state.nightDeaths) {
-      const vIdx = state.participants.indexOf(victim);
-      if (Math.abs(myIdx - vIdx) === 1 || Math.abs(myIdx - vIdx) === state.participants.length - 1) {
-        hints.push(
-          `你座位上紧挨着昨晚出局的玩家（${nameMap[victim as unknown as string] ?? victim}）。可以从这个角度聊一句——狼人可能会避开邻座来洗白，也可能反过来。`,
-        );
-        break;
-      }
-    }
-  }
-
-  // (4) Suspicion concentration — votes piling up
+  // (3) Suspicion concentration — votes piling up
   const voteTally: Record<string, number> = {};
   for (const v of Object.values(state.pendingVotes)) {
     voteTally[v] = (voteTally[v] || 0) + 1;
@@ -345,7 +284,7 @@ function focusHints(
     const otherVotesAgainstMe = voteTally[actorKey] ?? 0;
     if (otherVotesAgainstMe >= 2 && !myVoteTarget) {
       hints.push(
-        `你已经收到 ${otherVotesAgainstMe} 张投票。是被冲票了——可能需要在投票里反向归票一个最可疑的人。`,
+        `你已经收到 ${otherVotesAgainstMe} 张投票。是被冲票了——可以反向投一个最可疑的人（投票不公开发言，理由写进 thinking）。`,
       );
     }
     const leadingTallies = Object.entries(voteTally)
@@ -354,12 +293,12 @@ function focusHints(
     if (leadingTallies.length > 0 && leadingTallies[0]![1] >= 2) {
       const tgt = leadingTallies[0]![0];
       hints.push(
-        `${nameMap[tgt] ?? tgt} 目前票数最高（${leadingTallies[0]![1]} 票）。可以选择跟票或反对——但要给一个理由。`,
+        `${nameMap[tgt] ?? tgt} 目前票数最高（${leadingTallies[0]![1]} 票）。你可以跟票或反对——理由写进 thinking（投票阶段不公开发言）。`,
       );
     }
   }
 
-  // (5) Seer's private knowledge
+  // (4) Seer's private knowledge
   if (state.roles[actorKey] === 'seer' && state.seerKnowledge.length > 0) {
     const checks = state.seerKnowledge
       .map(
@@ -370,7 +309,7 @@ function focusHints(
     hints.push(`你的查验记录（仅你自己看到）：\n${checks}`);
   }
 
-  // (6) Witch private knowledge + potion-use nudges
+  // (5) Witch private knowledge + potion-use nudges
   if (state.roles[actorKey] === 'witch' && state.phase === 'night-witch') {
     if (state.pendingWolfKill) {
       const victimName = nameMap[state.pendingWolfKill as unknown as string] ?? state.pendingWolfKill;
@@ -537,7 +476,8 @@ ${log}
 PK CANDIDATE SPEECHES (round-1 + PK rounds):
 ${speechBlock}${hints}${grounding}
 
-Respond JSON: {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"...","action":{"target":"<one of the candidate ids>"}}`;
   }
 
   if (phase === 'sheriff-vote' && kind === 'sheriff-vote') {
@@ -574,10 +514,11 @@ ${log}
 CANDIDATE SPEECHES (carefully read each):
 ${speechBlock}${hints}
 
-Respond JSON: {"thinking":"<分析每个候选人>","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"<分析每个候选人>","action":{"target":"<one of the candidate ids>"}}`;
   }
 
-  if (phase === 'sheriff-pull-vote' && kind === 'sheriff-pull-vote') {
+  if (kind === 'sheriff-pull-vote') {
     const candidates = state.alive.filter((id) => id !== actorTwinId);
     return `It is day ${state.day + 1}, after all village speeches.
 
@@ -687,9 +628,10 @@ Respond JSON: {"thinking":"...","action":{...}}`;
   if (phase === 'day-direction' && kind === 'day-direction') {
     const oneDied = state.nightDeaths.length === 1;
     const victim = oneDied ? (nameMap[state.nightDeaths[0]! as unknown as string] ?? state.nightDeaths[0]) : null;
-    const choiceText = oneDied
-      ? `昨夜 ${victim} 出局。请选择发言方向：**死左** (从死者左侧顺位起) 或 **死右** (从死者右侧顺位起)。`
-      : `昨夜${state.nightDeaths.length === 0 ? '平安无事' : '多人出局'}。请选择发言方向：**警左** 或 **警右** (从你的位置起)。`;
+    const nightSummary = oneDied
+      ? `昨夜 ${victim} 出局。`
+      : `昨夜${state.nightDeaths.length === 0 ? '平安无事' : '多人出局'}。`;
+    const choiceText = `${nightSummary}请选择发言方向：**警左** 或 **警右**（从你警长座位的左/右侧顺位起，绕一圈，你最后归票）。`;
     return `It is day ${state.day + 1}. 你是警长，请决定今天的发言顺序方向。
 
 ${choiceText}
@@ -747,7 +689,8 @@ ${wolfHint}
 CANDIDATES (all alive):
 ${listCandidates(candidates, nameMap)}${hints}${grounding}${explodeOption}
 
-Respond JSON (REQUIRED non-empty target): {"thinking":"...","say":"<one sentence justification>","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON (REQUIRED non-empty target): {"thinking":"...","action":{"target":"<one of the candidate ids>"${youAreWolf ? ' | "self_explode": true' : ''}}}`;
   }
 
   if (phase === 'last-words' && kind === 'last-words') {
@@ -816,7 +759,8 @@ ${renderPublicLog(state.publicLog.slice(-8), nameMap)}
 PK CANDIDATES:
 ${listCandidates(state.dayPkCandidates ?? [], nameMap)}${hints}${grounding}
 
-Respond JSON: {"thinking":"...","say":"<one sentence>","action":{"target":"<one of the PK candidate ids>"}}`;
+投票阶段不公开发言，理由只写在 thinking 里。
+Respond JSON: {"thinking":"...","action":{"target":"<one of the PK candidate ids>"}}`;
   }
 
   if (phase === 'hunter-shoot' && kind === 'hunter-shoot') {
@@ -875,7 +819,7 @@ export function parseTurnText(
   // with kind='self-explode' so the action layer can short-circuit the
   // normal turn-writing logic and write a self-explode turn instead.
   if (action?.self_explode === true) {
-    if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote') {
+    if (kind === 'sheriff-claim' || kind === 'speak' || kind === 'vote' || kind === 'sheriff-pull-vote') {
       return { ok: true, data: { thinking, say, self_explode: true } };
     }
   }
