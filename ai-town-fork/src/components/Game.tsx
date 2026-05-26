@@ -13,6 +13,7 @@ import { useHistoricalTime } from '../hooks/useHistoricalTime.ts';
 import { DebugTimeManager } from './DebugTimeManager.tsx';
 import { GameId } from '../../convex/aiTown/ids.ts';
 import { useServerGame } from '../hooks/serverGame.ts';
+import GangPanel from './GangPanel.tsx';
 
 export const SHOW_DEBUG_UI = !!import.meta.env.VITE_SHOW_DEBUG_UI;
 
@@ -29,6 +30,12 @@ export default function Game() {
   const engineId = worldStatus?.engineId;
 
   const game = useServerGame(worldId);
+
+  // Get current human player ID for gang panel
+  const humanTokenIdentifier = useQuery(api.world.userStatus, worldId ? { worldId } : 'skip');
+  const players = game ? [...game.world.players.values()] : [];
+  const humanPlayer = players.find((p) => p.human === humanTokenIdentifier);
+  const currentPlayerId = humanPlayer?.id;
 
   // Send a periodic heartbeat to our world to keep it alive.
   useWorldHeartbeat();
@@ -55,6 +62,9 @@ export default function Game() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isMapFullscreen]);
 
+  // Gang panel toggle
+  const [isGangPanelOpen, setIsGangPanelOpen] = useState(false);
+
   if (!worldId || !engineId || !game) {
     return null;
   }
@@ -72,10 +82,11 @@ export default function Game() {
             game={game}
             viewportRef={viewportRef}
             setSelectedElement={setSelectedElement}
+            worldId={worldId}
           />
         )}
         {/* Game area */}
-        <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
+        <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef} onClick={() => isGangPanelOpen && setIsGangPanelOpen(false)}>
           <div className="absolute inset-0">
             <div className="container">
               <Stage width={width} height={height} options={{ backgroundColor: 0x7ab5ff }}>
@@ -104,6 +115,65 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
           >
             {isMapFullscreen ? '⛶ 退出' : '⛶ 全屏'}
           </button>
+          {/* Gang Button - Pixel Art Style, bottom left */}
+          {!isMapFullscreen && (
+            <button
+              onClick={() => setIsGangPanelOpen(true)}
+              className="absolute bottom-4 left-4 z-20 pointer-events-auto"
+              style={{
+                width: '48px',
+                height: '48px',
+                backgroundColor: '#2d1810',
+                border: '3px solid #8b6914',
+                boxShadow: '4px 4px 0 #1d0800',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                cursor: 'pointer',
+                imageRendering: 'pixelated',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#3d2820';
+                e.currentTarget.style.transform = 'translate(1px, 1px)';
+                e.currentTarget.style.boxShadow = '3px 3px 0 #1d0800';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#2d1810';
+                e.currentTarget.style.transform = 'translate(0, 0)';
+                e.currentTarget.style.boxShadow = '4px 4px 0 #1d0800';
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'translate(2px, 2px)';
+                e.currentTarget.style.boxShadow = '2px 2px 0 #1d0800';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'translate(1px, 1px)';
+                e.currentTarget.style.boxShadow = '3px 3px 0 #1d0800';
+              }}
+              title="帮派系统"
+            >
+              ☠️
+            </button>
+          )}
+          {/* Gang Panel - Inside game area, left side with margin */}
+          {isGangPanelOpen && (
+            <div
+              className="absolute z-30 overflow-hidden pointer-events-auto"
+              style={{
+                top: '16px',
+                left: '16px',
+                width: '265px',
+                height: 'calc(100% - 32px)',
+                backgroundColor: '#2d1810',
+                border: '4px solid #8b6914',
+                boxShadow: '4px 4px 0 #1d0800, 4px 4px 12px rgba(0,0,0,0.5)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GangPanel worldId={worldId} playerId={currentPlayerId} onClose={() => setIsGangPanelOpen(false)} />
+            </div>
+          )}
         </div>
         {/* Right column — hidden in map-fullscreen */}
         {!isMapFullscreen && (
