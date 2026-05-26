@@ -26,6 +26,7 @@ import { worldState } from './worldState';
 import { uploadResults } from './uploadResults';
 import { engineWatchdog } from './engineWatchdog';
 import { llmCacheStats } from './llmCacheStats';
+import { gangs, gangMembers, gangMessages, gangInvites } from './gangs';
 
 export const ourTables = {
   twins,
@@ -56,4 +57,8 @@ export const ourTables = {
   uploadResults,
   engineWatchdog,
   llmCacheStats,
+  gangs,
+  gangMembers,
+  gangMessages,
+  gangInvites,
 };
