@@ -5,8 +5,8 @@ import { internal } from '../../_generated/api';
 export default action({
   args: {
     worldId: v.id('worlds'),
-    fromPlayerId: v.id('players'),
-    toPlayerId: v.id('players'),
+    fromPlayerId: v.string(),
+    toPlayerId: v.string(),
     itemId: v.id('itemDefinitions'),
     count: v.number(),
   },

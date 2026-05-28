@@ -4,7 +4,7 @@ import { query } from '../../_generated/server';
 export default query({
   args: {
     worldId: v.id('worlds'),
-    playerId: v.id('players'),
+    playerId: v.string(),
   },
   handler: async (ctx, args) => {
     const inv = await ctx.db

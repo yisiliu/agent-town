@@ -17,6 +17,7 @@ import { ServerGame } from '../hooks/serverGame';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const playerConversationsRef = 'ours/queries/playerConversations:default' as any;
 const playerReflectionsRef = 'ours/queries/playerReflections:default' as any;
+const getPlayerInventoryRef = 'ours/queries/getPlayerInventory:default' as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function PlayerDetails({
@@ -63,6 +64,13 @@ export default function PlayerDetails({
   ) as
     | { _id: string; createdAt: number; description: string; importance: number }[]
     | undefined;
+
+  // Query the player's inventory (playerId is a string like "p:0" in the game)
+  const inventoryData = useQuery(
+    getPlayerInventoryRef,
+    playerId && worldId ? { worldId, playerId } : 'skip',
+  ) as { items: { itemId: string; name: string; icon?: string; count: number }[] } | undefined;
+  const inventory = inventoryData?.items;
 
   const playerDescription = playerId && game.playerDescriptions.get(playerId);
 
@@ -272,6 +280,26 @@ export default function PlayerDetails({
       )}
       {reflections && reflections.length > 0 && (
         <Reflections reflections={reflections} />
+      )}
+      {inventory && inventory.length > 0 && (
+        <div className="box flex-grow mt-4">
+          <h2 className="bg-brown-700 text-lg text-center">背包物品</h2>
+          <ul className="my-2 space-y-1">
+            {inventory.map((item) => (
+              <li key={item.itemId} className="bg-brown-700 rounded px-2 py-1 text-sm flex items-center gap-2">
+                {item.icon && <span>{item.icon}</span>}
+                <span className="flex-grow truncate">{item.name}</span>
+                <span className="text-xs opacity-70">×{item.count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {inventory && inventory.length === 0 && (
+        <div className="box flex-grow mt-4">
+          <h2 className="bg-brown-700 text-lg text-center">背包物品</h2>
+          <p className="text-sm text-center opacity-70 mt-2">背包空空</p>
+        </div>
       )}
     </>
   );

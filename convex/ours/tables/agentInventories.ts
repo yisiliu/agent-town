@@ -3,9 +3,10 @@ import { v } from 'convex/values';
 
 // Per-agent inventory — tracks how many of each item an agent owns
 // Uses array format instead of Map to avoid non-ASCII key issue (AGENTS.md §7.5)
+// playerId is stored as string (game-format like "p:0") matching game.world.players keys
 export const agentInventories = defineTable({
   worldId: v.id('worlds'),
-  playerId: v.id('players'),
+  playerId: v.string(),
   // Array of {itemId, count} — NOT a Map (Convex can't serialize Map with non-ASCII keys)
   items: v.array(
     v.object({

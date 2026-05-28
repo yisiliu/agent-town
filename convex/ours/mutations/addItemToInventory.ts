@@ -4,7 +4,7 @@ import { mutation } from '../../_generated/server';
 export default mutation({
   args: {
     worldId: v.id('worlds'),
-    playerId: v.id('players'),
+    playerId: v.string(),
     itemId: v.id('itemDefinitions'),
     count: v.number(),
   },
