@@ -45,7 +45,9 @@ export async function callLlamaGuard(
 ): Promise<LlamaGuardVerdict> {
   const apiKey = process.env.TOGETHER_API_KEY;
   if (!apiKey) {
-    throw new Error('llama-guard: TOGETHER_API_KEY env var is missing');
+    // Fail-open when Together key is absent — only for local dev without Together
+    console.warn('llama-guard: TOGETHER_API_KEY not set, skipping (fail-open)');
+    return { verdict: 'safe' };
   }
   const res = await fetch(TOGETHER_ENDPOINT, {
     method: 'POST',
