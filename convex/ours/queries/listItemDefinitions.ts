@@ -15,8 +15,8 @@ export default query({
   },
   handler: async (ctx, args) => {
     let q = ctx.db.query('itemDefinitions');
-    if (args.category) {
-      q = q.withIndex('category', (q) => q.eq('category', args.category));
+    if (args.category !== undefined) {
+      q = q.filter((q) => q.eq(q.field('category'), args.category));
     }
     const items = await q.collect();
     return items.map((item) => ({
