@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, useAction } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Doc, Id } from '../../convex/_generated/dataModel';
 import closeImg from '../../assets/close.svg';
@@ -18,6 +18,7 @@ import { ServerGame } from '../hooks/serverGame';
 const playerConversationsRef = 'ours/queries/playerConversations:default' as any;
 const playerReflectionsRef = 'ours/queries/playerReflections:default' as any;
 const getPlayerInventoryRef = 'ours/queries/getPlayerInventory:default' as any;
+const giveItemActionRef = 'ours/actions/giveItemAction:default' as any;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function PlayerDetails({
@@ -78,6 +79,20 @@ export default function PlayerDetails({
   const acceptInvite = useSendInput(engineId, 'acceptInvite');
   const rejectInvite = useSendInput(engineId, 'rejectInvite');
   const leaveConversation = useSendInput(engineId, 'leaveConversation');
+  const giveItemAction = useAction(giveItemActionRef);
+
+  // Give item dialog state
+  const [showGiveDialog, setShowGiveDialog] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState('');
+  const [giveCount, setGiveCount] = useState(1);
+  const [giving, setGiving] = useState(false);
+
+  // Human player's own inventory (to know what we can give)
+  const humanInventoryData = useQuery(
+    getPlayerInventoryRef,
+    humanPlayer && worldId ? { worldId, playerId: humanPlayer.id } : 'skip',
+  ) as { items: { itemId: string; name: string; icon?: string; count: number }[] } | undefined;
+  const humanInventory = humanInventoryData?.items;
 
   if (!playerId) {
     return (
@@ -152,6 +167,27 @@ export default function PlayerDetails({
         conversationId: humanConversation.id,
       }),
     );
+  };
+
+  const onGiveItem = async () => {
+    if (!humanPlayer || !playerId || !selectedItemId || giveCount <= 0) return;
+    setGiving(true);
+    try {
+      await giveItemAction({
+        worldId,
+        fromPlayerId: humanPlayer.id,
+        toPlayerId: playerId,
+        itemId: selectedItemId,
+        count: giveCount,
+      });
+      setShowGiveDialog(false);
+      setSelectedItemId('');
+      setGiveCount(1);
+    } catch (e) {
+      console.error('give item failed:', e);
+    } finally {
+      setGiving(false);
+    }
   };
   // const pendingSuffix = (inputName: string) =>
   //   [...inflightInputs.values()].find((i) => i.name === inputName) ? ' opacity-50' : '';
@@ -239,6 +275,74 @@ export default function PlayerDetails({
             </div>
           </a>
         </>
+      )}
+      {/* Give Item button — only when viewing another player and we have items */}
+      {!isMe && humanInventory && humanInventory.length > 0 && !showGiveDialog && (
+        <a
+          className="mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto"
+          onClick={() => setShowGiveDialog(true)}
+        >
+          <div className="h-full bg-green-700 text-center">
+            <span>赠送物品</span>
+          </div>
+        </a>
+      )}
+      {/* Give item dialog */}
+      {showGiveDialog && (
+        <div className="box flex-grow mt-4">
+          <h2 className="bg-brown-700 text-lg text-center mb-3">赠送物品给 {playerDescription?.name}</h2>
+          {humanInventory && humanInventory.length > 0 ? (
+            <>
+              <div className="mb-2">
+                <label className="text-xs opacity-70 block mb-1">选择物品</label>
+                <select
+                  className="w-full bg-brown-600 text-brown-100 rounded px-2 py-1 text-sm"
+                  value={selectedItemId}
+                  onChange={(e) => setSelectedItemId(e.target.value)}
+                >
+                  <option value="">— 选择物品 —</option>
+                  {humanInventory.map((item) => (
+                    <option key={item.itemId} value={item.itemId}>
+                      {item.icon} {item.name} (持有 {item.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedItemId && (
+                <div className="mb-3">
+                  <label className="text-xs opacity-70 block mb-1">数量</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={
+                      humanInventory.find((i) => i.itemId === selectedItemId)?.count ?? 1
+                    }
+                    value={giveCount}
+                    onChange={(e) => setGiveCount(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full bg-brown-600 text-brown-100 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+              )}
+              <div className="flex gap-2 mt-2">
+                <button
+                  className="flex-1 bg-green-700 hover:bg-green-800 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                  disabled={!selectedItemId || giveCount < 1 || giving}
+                  onClick={onGiveItem}
+                >
+                  {giving ? '赠送中…' : '确认赠送'}
+                </button>
+                <button
+                  className="flex-1 bg-brown-600 hover:bg-brown-500 text-white rounded px-3 py-1.5 text-sm"
+                  onClick={() => { setShowGiveDialog(false); setSelectedItemId(''); setGiveCount(1); }}
+                >
+                  取消
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-center opacity-70">你的背包是空的，无法赠送。</p>
+          )}
+        </div>
       )}
       {!playerConversation && player.activity && player.activity.until > Date.now() && (
         <div className="box flex-grow mt-6">
