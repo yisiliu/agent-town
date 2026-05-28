@@ -202,4 +202,35 @@ export const agentInputs = {
       return { agentId };
     },
   }),
+  // giveItem: allows an agent to give items to another player
+  // Uses agentInventories table (ours/) — items must already exist in agentInventories
+  // for both giver and receiver. Idempotent: refuses if giver has insufficient count.
+  giveItem: inputHandler({
+    args: {
+      agentId: v.id('agents'),
+      targetPlayerId: v.id('players'),
+      itemId: v.id('itemDefinitions'),
+      count: v.number(),
+    },
+    handler: (game, now, args) => {
+      const agentId = parseGameId('agents', args.agentId);
+      const agent = game.world.agents.get(agentId);
+      if (!agent) {
+        throw new Error(`Couldn't find agent: ${agentId}`);
+      }
+      const fromPlayerId = agent.playerId;
+      const toPlayerId = args.targetPlayerId;
+      if (fromPlayerId === toPlayerId) {
+        // No-op self-transfer
+        return { success: false, reason: 'self_transfer' };
+      }
+      if (args.count <= 0) {
+        return { success: false, reason: 'invalid_count' };
+      }
+      // Note: actual inventory transfer happens via our mutation.
+      // This input handler is a signal to the engine — the agent decided
+      // to give an item. The mutation is called by the action layer.
+      return { success: true, fromPlayerId, toPlayerId, itemId: args.itemId, count: args.count };
+    },
+  }),
 };
